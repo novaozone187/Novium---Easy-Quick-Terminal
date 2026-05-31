@@ -1,22 +1,39 @@
 import pytest
+import os
+import tempfile
 from pathlib import Path
-from novium.config_manager import load_config, save_config, hard_reset, DEFAULT_CONFIG, CONFIG_FILE, MARKER_FILE
 
-# --- Fixtures for setup and cleanup ---
+# Add parent directory to path for imports
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-@pytest.fixture(scope="module")
+from config_manager import load_config, save_config, hard_reset, DEFAULT_CONFIG, CONFIG_FILE, MARKER_FILE
+
+
+@pytest.fixture(scope="function")
 def clean_environment():
-    """Fixture to ensure a clean slate before running tests."""
-    hard_reset() # Uses the function from config_manager which handles cleanup
+    """Fixture to ensure a clean slate before each test."""
+    # Clean up before test
+    if MARKER_FILE.exists():
+        MARKER_FILE.unlink()
+    if CONFIG_FILE.exists():
+        CONFIG_FILE.unlink()
+    yield
+    # Cleanup after test
+    if MARKER_FILE.exists():
+        MARKER_FILE.unlink()
+    if CONFIG_FILE.exists():
+        CONFIG_FILE.unlink()
+
 
 def test_default_config_load_empty(clean_environment):
     """Tests that load_config returns defaults when no configuration file exists."""
-    # Since hard_reset was called, we guarantee no config file exists.
     config = load_config()
     assert isinstance(config, dict)
-    # Check a few key default values
     assert config["logo_color"] == "BLUE"
     assert config["hardware_monitoring"] is True
+    assert config["web_search_enabled"] is True
+
 
 def test_save_and_load_config(clean_environment):
     """Tests the full save/load cycle of configuration."""
@@ -28,23 +45,35 @@ def test_save_and_load_config(clean_environment):
         "autostart_enabled": True
     }
 
-    # 1. Save the test configuration
     save_config(test_config)
-    
-    # 2. Load and verify
     loaded_config = load_config()
-    assert loaded_config == pytest.approx(test_config)
+
+    assert loaded_config["logo_color"] == "CYAN"
+    assert loaded_config["hardware_monitoring"] is False
+    assert loaded_config["app_launcher_active"] is True
+    assert loaded_config["autostart_enabled"] is True
+
 
 def test_hard_reset_removes_files(clean_environment):
     """Tests that hard_reset successfully cleans up the marker and config files."""
-    # Ensure files exist before testing removal
-    with open(str(MARKER_FILE), 'w') as f: f.write("test")
-    with open(str(CONFIG_FILE), 'w') as f: f.write("{}")
-    assert MARKER_FILE.exists() and CONFIG_FILE.exists()
+    MARKER_FILE.touch()
+    CONFIG_FILE.write_text("{}")
 
-    # Run reset
+    assert MARKER_FILE.exists()
+    assert CONFIG_FILE.exists()
+
     hard_reset()
 
-    # Verify files are gone
     assert not MARKER_FILE.exists()
     assert not CONFIG_FILE.exists()
+
+
+def test_config_merge_with_defaults(clean_environment):
+    """Tests that partial config files are merged with defaults."""
+    partial = {"logo_color": "RED"}
+    save_config(partial)
+
+    loaded = load_config()
+    assert loaded["logo_color"] == "RED"
+    assert loaded["hardware_monitoring"] is True  # from default
+    assert loaded["autostart_enabled"] is False    # from default

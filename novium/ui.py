@@ -3,6 +3,7 @@
 import os
 import shutil
 import time
+import subprocess
 
 from utils import color_text, BOLD, BLUE, GREEN, CYAN, clear, set_windows_ansi
 from system_monitor import get_temperature_sensors, get_fan_sensors
@@ -22,7 +23,7 @@ def display_logo(logo_content, color=None, delay=0.002):
         print()
 
 
-def render_shell(stats, hints, last_output):
+def render_shell(stats, hints, last_output, logo_mode='novium'):
     """Renders the main shell home screen with logo, stats, and hints."""
     set_windows_ansi()
     clear()
@@ -41,8 +42,22 @@ def render_shell(stats, hints, last_output):
 '----------------'
 """
 
-    left_lines = N_LOGO.strip().splitlines()
-    left_width = max(len(line) for line in left_lines) + 4
+    if logo_mode == 'os':
+        # Run fastfetch to display OS logo and info
+        try:
+            subprocess.run(['fastfetch'], check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print(color_text("fastfetch not found. Run 'ff' to install it.", YELLOW))
+        print()
+        left_lines = []
+        left_width = 0
+    elif logo_mode == 'none':
+        left_lines = []
+        left_width = 0
+    else:
+        # logo_mode == 'novium'
+        left_lines = N_LOGO.strip().splitlines()
+        left_width = max(len(line) for line in left_lines) + 4
 
     # Convert stats dict to list of lines for alignment
     stats_lines = []
@@ -54,11 +69,22 @@ def render_shell(stats, hints, last_output):
     else:
         stats_lines = [str(stats)]
 
-    max_lines = max(len(left_lines), max(len(stats_lines), len(hints) + 2))
-    for i in range(max_lines):
-        left = left_lines[i] if i < len(left_lines) else ""
-        right = stats_lines[i] if i < len(stats_lines) else ""
-        print(left.ljust(left_width) + right)
+    # Print output from last command
+    if last_output:
+        for line in last_output:
+            print(line)
+        print()
+
+    if left_lines:
+        max_lines = max(len(left_lines), max(len(stats_lines), len(hints) + 2))
+        for i in range(max_lines):
+            left = left_lines[i] if i < len(left_lines) else ""
+            right = stats_lines[i] if i < len(stats_lines) else ""
+            print(left.ljust(left_width) + right)
+    else:
+        # No logo - just print stats as a simple list
+        for line in stats_lines:
+            print(line)
 
     print()
     GENERAL_COMMANDS = ['help', 'stats', 'fan', 'settings', 'setup', 'sysinfo', 'nhome', 'clear', 'exit']
@@ -67,44 +93,6 @@ def render_shell(stats, hints, last_output):
     print(color_text('Type a normal shell command to execute it too.', GREEN))
     print(color_text('Type nhome to return to the main shell home screen.', GREEN))
     print()
-
-
-def update_stats_panel(stats_dict):
-    """Updates the live stats panel inline."""
-    N_LOGO = r"""
-.-----------------.
-| .--------------. |
-| | ____  _____  | |
-| ||_   \|_   _| | |
-| |  |   \ | |   | |
-| |  | |\ \| |   | |
-| | _| |_\   |_  | |
-| ||_____|\____| | |
-| |              | |
-| '--------------' |
-'----------------'
-"""
-    left_lines = N_LOGO.strip().splitlines()
-    left_width = max(len(line) for line in left_lines) + 4
-
-    stats_lines = []
-    for key, value in stats_dict.items():
-        stats_lines.append(f"{key}: {value}")
-
-    for row, line in enumerate(stats_lines, start=1):
-        cursor_move(row, left_width + 1)
-        clear_line()
-        print(line, end='', flush=True)
-
-
-def cursor_move(row, col):
-    """Moves cursor to position (row, col)."""
-    print(f"\033[{row};{col}H", end='', flush=True)
-
-
-def clear_line():
-    """Clears from cursor to end of line."""
-    print("\033[K", end='', flush=True)
 
 
 def render_sensor_screen():
@@ -176,6 +164,7 @@ def render_settings_screen():
             print(f"  Web Search:          {color_text('Enabled' if config['web_search_enabled'] else 'Disabled', GREEN if config['web_search_enabled'] else RED)}")
             print(f"  App Launcher:        {color_text('Enabled' if config['app_launcher_active'] else 'Disabled', GREEN if config['app_launcher_active'] else RED)}")
             print(f"  Autostart:           {color_text('Enabled' if config['autostart_enabled'] else 'Disabled', GREEN if config['autostart_enabled'] else RED)}")
+            print(f"  Logo Mode:           {color_text(config.get('logo_mode', 'novium'), CYAN)}")
             print()
             print(color_text("To toggle, edit config.json directly.", BLUE))
             input(color_text('Press Enter to continue...', CYAN))
@@ -225,6 +214,7 @@ def render_setup_screen():
             print(f"  Web Search:          {color_text('Enabled' if config['web_search_enabled'] else 'Disabled', GREEN if config['web_search_enabled'] else RED)}")
             print(f"  App Launcher:        {color_text('Enabled' if config['app_launcher_active'] else 'Disabled', GREEN if config['app_launcher_active'] else RED)}")
             print(f"  Autostart:           {color_text('Enabled' if config['autostart_enabled'] else 'Disabled', GREEN if config['autostart_enabled'] else RED)}")
+            print(f"  Logo Mode:           {color_text(config.get('logo_mode', 'novium'), CYAN)}")
             print()
             print(color_text("To toggle, edit config.json directly.", BLUE))
             input(color_text('Press Enter to continue...', CYAN))
