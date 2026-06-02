@@ -11,7 +11,7 @@ import urllib.error
 import zipfile
 from pathlib import Path
 
-from utils import color_text, GREEN, YELLOW, RED
+from utils import color_text, BOLD, BLUE, CYAN, GREEN, YELLOW, RED, MAGENTA, RESET, clear
 from system_monitor import detect_linux_distro
 
 MARKER_FILE = Path.home() / ".novium_setup_done"
