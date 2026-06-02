@@ -21,7 +21,8 @@ DEFAULT_CONFIG = {
     "hardware_monitoring": True,
     "web_search_enabled": True,
     "app_launcher_active": False,
-    "autostart_enabled": False
+    "autostart_enabled": False,
+    "font": "default"
 }
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -116,30 +117,127 @@ def install_fastfetch():
     elif os.name == 'posix':
         if platform.system() == 'Darwin':
             try:
-                subprocess.run(['brew', 'install', 'fastfetch'], check=True, capture_output=True)
+                print(color_text("Trying to install fastfetch via brew...", YELLOW))
+                result = subprocess.run(
+                    ['brew', 'install', 'fastfetch'],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+                if result.stdout:
+                    for line in result.stdout.strip().splitlines():
+                        print(f"  {line}")
                 if check_fastfetch_installed():
+                    print(color_text("fastfetch installed successfully via brew.", GREEN))
                     return True
-            except Exception:
-                pass
+            except subprocess.TimeoutExpired:
+                print(color_text("brew install timed out.", RED))
+            except FileNotFoundError:
+                print(color_text("brew not found. Install fastfetch manually:", RED))
+                print(color_text("  brew install fastfetch", GREEN))
+                print(color_text("  or download from: https://github.com/fastfetch-cli/fastfetch/releases", GREEN))
+            except Exception as e:
+                print(color_text(f"brew install failed: {e}", RED))
         else:
-            # Linux - try common package managers
+            # Linux - detect distro and use correct package manager
             distro = detect_linux_distro()
-            for pm in ['apt', 'dnf', 'pacman', 'zypper', 'apk']:
+            if distro:
+                print(color_text(f"Detected Linux distribution: {distro}", CYAN))
+            else:
+                print(color_text("Could not detect Linux distribution. Trying common package managers...", YELLOW))
+
+            # Build package manager list based on detected distro
+            pm_list = []
+            if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
+                pm_list = ['apt']
+            elif distro in ('fedora', 'rhel', 'centos', 'rocky', 'almalinux', 'amzn'):
+                pm_list = ['dnf']
+            elif distro == 'arch':
+                pm_list = ['pacman']
+            elif distro == 'alpine':
+                pm_list = ['apk']
+            elif distro == 'opensuse-tumbleweed' or distro == 'opensuse-leap':
+                pm_list = ['zypper']
+            else:
+                # Unknown distro - try common package managers
+                pm_list = ['apt', 'dnf', 'pacman', 'zypper', 'apk']
+
+            for pm in pm_list:
                 try:
+                    print(color_text(f"Trying to install fastfetch via {pm}...", YELLOW))
                     if pm == 'apt':
-                        subprocess.run(['sudo', 'apt', 'install', '-y', 'fastfetch'], check=True, capture_output=True)
+                        result = subprocess.run(
+                            ['sudo', 'apt', 'install', '-y', 'fastfetch'],
+                            check=True,
+                            capture_output=True,
+                            text=True,
+                            timeout=120
+                        )
                     elif pm == 'dnf':
-                        subprocess.run(['sudo', 'dnf', 'install', '-y', 'fastfetch'], check=True, capture_output=True)
+                        result = subprocess.run(
+                            ['sudo', 'dnf', 'install', '-y', 'fastfetch'],
+                            check=True,
+                            capture_output=True,
+                            text=True,
+                            timeout=120
+                        )
                     elif pm == 'pacman':
-                        subprocess.run(['sudo', 'pacman', '-S', '--noconfirm', 'fastfetch'], check=True, capture_output=True)
+                        result = subprocess.run(
+                            ['sudo', 'pacman', '-S', '--noconfirm', 'fastfetch'],
+                            check=True,
+                            capture_output=True,
+                            text=True,
+                            timeout=120
+                        )
                     elif pm == 'zypper':
-                        subprocess.run(['sudo', 'zypper', 'install', '-y', 'fastfetch'], check=True, capture_output=True)
+                        result = subprocess.run(
+                            ['sudo', 'zypper', 'install', '-y', 'fastfetch'],
+                            check=True,
+                            capture_output=True,
+                            text=True,
+                            timeout=120
+                        )
                     elif pm == 'apk':
-                        subprocess.run(['sudo', 'apk', 'add', 'fastfetch'], check=True, capture_output=True)
+                        result = subprocess.run(
+                            ['sudo', 'apk', 'add', 'fastfetch'],
+                            check=True,
+                            capture_output=True,
+                            text=True,
+                            timeout=120
+                        )
                     if check_fastfetch_installed():
+                        print(color_text(f"fastfetch installed successfully via {pm}.", GREEN))
                         return True
-                except Exception:
-                    continue
+                except subprocess.TimeoutExpired:
+                    print(color_text(f"  {pm} timed out.", RED))
+                except FileNotFoundError:
+                    print(color_text(f"  {pm} not found on this system.", YELLOW))
+                except Exception as e:
+                    print(color_text(f"  {pm} failed: {e}", RED))
+                    if hasattr(e, 'stderr') and e.stderr:
+                        for line in e.stderr.strip().splitlines():
+                            print(f"    {line}")
+
+            # If we got here, all package managers failed
+            print()
+            print(color_text("Failed to install fastfetch automatically. Try one of:", RED))
+            if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
+                print(color_text("  sudo apt update && sudo apt install -y fastfetch", GREEN))
+            elif distro in ('fedora', 'rhel', 'centos', 'rocky', 'almalinux', 'amzn'):
+                print(color_text("  sudo dnf install -y fastfetch", GREEN))
+            elif distro == 'arch':
+                print(color_text("  sudo pacman -S fastfetch", GREEN))
+            elif distro == 'alpine':
+                print(color_text("  sudo apk add fastfetch", GREEN))
+            elif distro == 'opensuse-tumbleweed' or distro == 'opensuse-leap':
+                print(color_text("  sudo zypper install -y fastfetch", GREEN))
+            else:
+                print(color_text("  sudo apt install -y fastfetch  (Debian/Ubuntu)", GREEN))
+                print(color_text("  sudo dnf install -y fastfetch  (Fedora/RHEL)", GREEN))
+                print(color_text("  sudo pacman -S fastfetch  (Arch)", GREEN))
+                print(color_text("  sudo apk add fastfetch  (Alpine)", GREEN))
+            print(color_text("  Or download from: https://github.com/fastfetch-cli/fastfetch/releases", GREEN))
             return False
     return False
 
@@ -225,15 +323,39 @@ def ensure_dependencies():
         )
         if pip_check.returncode != 0:
             print(color_text("pip is not available. Please install it manually:", RED))
-            print(color_text("  Ubuntu/Debian: sudo apt install python3-pip python3-venv", GREEN))
-            print(color_text("  Fedora: sudo dnf install python3-pip python3-virtualenv", GREEN))
-            print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
+            distro = detect_linux_distro()
+            if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
+                print(color_text("  sudo apt update && sudo apt install -y python3 python3-pip python3-venv", GREEN))
+            elif distro in ('fedora', 'rhel', 'centos', 'rocky', 'almalinux', 'amzn'):
+                print(color_text("  sudo dnf install -y python3 python3-pip python3-virtualenv", GREEN))
+            elif distro == 'arch':
+                print(color_text("  sudo pacman -S python python-pip", GREEN))
+            elif distro == 'alpine':
+                print(color_text("  sudo apk add python3 py3-pip", GREEN))
+            elif distro == 'opensuse-tumbleweed' or distro == 'opensuse-leap':
+                print(color_text("  sudo zypper install -y python3 python3-pip", GREEN))
+            else:
+                print(color_text("  Ubuntu/Debian: sudo apt install python3-pip python3-venv", GREEN))
+                print(color_text("  Fedora: sudo dnf install python3-pip python3-virtualenv", GREEN))
+                print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
             print()
     except FileNotFoundError:
         print(color_text("pip command not found. Please install it manually:", RED))
-        print(color_text("  Ubuntu/Debian: sudo apt install python3-pip python3-venv", GREEN))
-        print(color_text("  Fedora: sudo dnf install python3-pip python3-virtualenv", GREEN))
-        print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
+        distro = detect_linux_distro()
+        if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
+            print(color_text("  sudo apt update && sudo apt install -y python3 python3-pip python3-venv", GREEN))
+        elif distro in ('fedora', 'rhel', 'centos', 'rocky', 'almalinux', 'amzn'):
+            print(color_text("  sudo dnf install -y python3 python3-pip python3-virtualenv", GREEN))
+        elif distro == 'arch':
+            print(color_text("  sudo pacman -S python python-pip", GREEN))
+        elif distro == 'alpine':
+            print(color_text("  sudo apk add python3 py3-pip", GREEN))
+        elif distro == 'opensuse-tumbleweed' or distro == 'opensuse-leap':
+            print(color_text("  sudo zypper install -y python3 python3-pip", GREEN))
+        else:
+            print(color_text("  Ubuntu/Debian: sudo apt install python3-pip python3-venv", GREEN))
+            print(color_text("  Fedora: sudo dnf install python3-pip python3-virtualenv", GREEN))
+            print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
         print()
     except Exception:
         pass
@@ -272,7 +394,24 @@ def ensure_dependencies():
 
             if not pip_install_requirements():
                 print(color_text("Automatic dependency installation failed. Try manually:", RED))
-                print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                distro = detect_linux_distro()
+                if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
+                    print(color_text("  sudo apt update && sudo apt install -y python3-pip", GREEN))
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                elif distro in ('fedora', 'rhel', 'centos', 'rocky', 'almalinux', 'amzn'):
+                    print(color_text("  sudo dnf install -y python3-pip", GREEN))
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                elif distro == 'arch':
+                    print(color_text("  sudo pacman -S python-pip", GREEN))
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                elif distro == 'alpine':
+                    print(color_text("  sudo apk add py3-pip", GREEN))
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                elif distro == 'opensuse-tumbleweed' or distro == 'opensuse-leap':
+                    print(color_text("  sudo zypper install -y python3-pip", GREEN))
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                else:
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
                 return False
 
             # Verify all installed
@@ -308,11 +447,19 @@ def ensure_dependencies():
             elif platform.system() == 'Darwin':
                 print(color_text("Failed to install fastfetch. Run `brew install fastfetch` manually.", RED))
             else:
-                print(color_text("Failed to install fastfetch. Try one of:", RED))
-                print(color_text("  Ubuntu/Debian: sudo apt install fastfetch", GREEN))
-                print(color_text("  Fedora: sudo dnf install fastfetch", GREEN))
-                print(color_text("  Arch: sudo pacman -S fastfetch", GREEN))
-                print(color_text("  Or download from: https://github.com/fastfetch-cli/fastfetch/releases", GREEN))
+                distro = detect_linux_distro()
+                if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
+                    print(color_text("  sudo apt update && sudo apt install -y fastfetch", GREEN))
+                elif distro in ('fedora', 'rhel', 'centos', 'rocky', 'almalinux', 'amzn'):
+                    print(color_text("  sudo dnf install -y fastfetch", GREEN))
+                elif distro == 'arch':
+                    print(color_text("  sudo pacman -S fastfetch", GREEN))
+                elif distro == 'alpine':
+                    print(color_text("  sudo apk add fastfetch", GREEN))
+                elif distro == 'opensuse-tumbleweed' or distro == 'opensuse-leap':
+                    print(color_text("  sudo zypper install -y fastfetch", GREEN))
+                else:
+                    print(color_text("  Or download from: https://github.com/fastfetch-cli/fastfetch/releases", GREEN))
     else:
         print(f"fastfetch: {color_text('OK', GREEN)}")
 

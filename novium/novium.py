@@ -60,7 +60,7 @@ N_LOGO = r"""
 '----------------'
 """
 
-GENERAL_COMMANDS = ['help', 'stats', 'fan', 'settings', 'setup', 'sysinfo', 'nhome', 'clear', 'exit', 'winactivate', 'update', 'os-setup', 'version', 'bump']
+GENERAL_COMMANDS = ['help', 'stats', 'fan', 'settings', 'setup', 'sysinfo', 'nhome', 'clear', 'exit', 'winactivate', 'update', 'os-setup', 'version', 'bump', 'font']
 
 OS_COMMAND_HINTS = {
     'nt': ['dir', 'cls', 'ipconfig', 'tasklist', 'systeminfo'],
@@ -143,6 +143,11 @@ def show_shell_help():
         color_text('Version:', BOLD),
         color_text('  version  - show current Novium version', BLUE),
         color_text('  bump     - increment patch version', BLUE),
+        '',
+        color_text('Font Commands:', BOLD),
+        color_text('  font set <name>  - Set font (monocraft, default)', BLUE),
+        color_text('  font list        - List available fonts', BLUE),
+        color_text('  font current     - Show current font', BLUE),
         '',
         color_text('App Commands:', BOLD),
         color_text('  web <query>   - open Google search in your browser', BLUE),
@@ -369,6 +374,42 @@ def start_screen():
             last_output = []
         elif command.lower() == 'clear':
             clear()
+            last_output = []
+        elif parts[0] == 'font' and len(parts) > 1:
+            # Font command handling
+            if parts[1].lower() == 'set' and len(parts) > 2:
+                font_name = parts[2].lower()
+                from core.font_manager import set_font
+                success, message = set_font(font_name)
+                if success:
+                    last_output = [color_text(message, GREEN)]
+                else:
+                    last_output = [color_text(message, RED)]
+            elif parts[1].lower() == 'list':
+                from core.font_manager import list_fonts, get_font_name
+                current = get_font_name()
+                last_output = [color_text("Available fonts:", BOLD + CYAN), '']
+                for name, display_name, available in list_fonts():
+                    status = "[OK]" if available else "[ ]"
+                    current_marker = " (current)" if name == current else ""
+                    color = GREEN if available else YELLOW
+                    last_output.append(f"  {status} {name:<12} {display_name:<20}{current_marker}")
+            elif parts[1].lower() == 'current':
+                from core.font_manager import get_font_name, get_font_display_name
+                current = get_font_name()
+                last_output = [color_text(f"Current font: {get_font_display_name(current)}", GREEN)]
+            else:
+                from core.font_manager import get_font_name
+                current = get_font_name()
+                last_output = [
+                    color_text("Font management:", BOLD + CYAN),
+                    '',
+                    color_text("  font set <name>  - Set font (monocraft, default)", BLUE),
+                    color_text("  font list        - List available fonts", BLUE),
+                    color_text("  font current     - Show current font", BLUE),
+                    '',
+                    color_text(f"Current font: {current}", YELLOW)
+                ]
             last_output = []
         elif command.lower() == 'version':
             print(color_text(f"Novium version: {get_version()}", GREEN))

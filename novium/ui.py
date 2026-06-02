@@ -8,6 +8,25 @@ import subprocess
 from utils import color_text, BOLD, BLUE, GREEN, CYAN, YELLOW, RED, MAGENTA, clear, set_windows_ansi
 from system_monitor import get_temperature_sensors, get_fan_sensors
 
+# Font manager integration
+try:
+    from core.font_manager import get_font_path, get_font_name
+    FONT_SUPPORTED = True
+except ImportError:
+    FONT_SUPPORTED = False
+    get_font_path = lambda: None
+    get_font_name = lambda: 'default'
+
+
+def get_font_config():
+    """Returns current font configuration."""
+    if not FONT_SUPPORTED:
+        return None
+    return {
+        'name': get_font_name(),
+        'path': get_font_path()
+    }
+
 # --- Screen Utilities ---
 
 
