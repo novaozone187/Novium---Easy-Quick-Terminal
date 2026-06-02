@@ -2,7 +2,15 @@
 import json
 import os
 import sys
+import shutil
+import subprocess
+import tempfile
+import urllib.request
+import urllib.error
+import zipfile
 from pathlib import Path
+
+from utils import color_text, GREEN, YELLOW, RED
 
 MARKER_FILE = Path.home() / ".novium_setup_done"
 CONFIG_FILE = Path.cwd() / "config.json"
@@ -17,6 +25,94 @@ DEFAULT_CONFIG = {
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REQUIREMENTS_FILE = SCRIPT_DIR / "requirements.txt"
+GITHUB_REPO = "novium"
+GITHUB_BRANCH = "main"
+
+
+def check_fastfetch_installed():
+    """Checks if fastfetch is installed."""
+    if os.name == 'nt':
+        path_dirs = os.environ.get('PATH', '').split(os.pathsep)
+        for d in path_dirs:
+            exe = Path(d) / 'fastfetch.exe'
+            if exe.exists():
+                return True
+        return False
+    else:
+        try:
+            res = subprocess.run(['which', 'fastfetch'], capture_output=True)
+            return res.returncode == 0
+        except Exception:
+            return False
+
+
+def install_fastfetch():
+    """Attempts to install fastfetch on the current platform."""
+    if check_fastfetch_installed():
+        return True
+
+    if os.name == 'nt':
+        for installer in ['winget', 'scoop', 'choco']:
+            try:
+                print(color_text(f"Trying to install fastfetch via {installer}...", YELLOW))
+                result = subprocess.run(
+                    [installer, 'install', 'fastfetch', '-y'],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+                print(color_text(f"  {installer} output:", GREEN))
+                if result.stdout:
+                    for line in result.stdout.strip().splitlines():
+                        print(f"    {line}")
+                if check_fastfetch_installed():
+                    print(color_text(f"fastfetch installed successfully via {installer}.", GREEN))
+                    return True
+            except subprocess.TimeoutExpired:
+                print(color_text(f"  {installer} timed out.", RED))
+            except FileNotFoundError:
+                print(color_text(f"  {installer} not found on this system.", YELLOW))
+            except Exception as e:
+                print(color_text(f"  {installer} failed: {e}", RED))
+                if hasattr(e, 'stderr') and e.stderr:
+                    for line in e.stderr.strip().splitlines():
+                        print(f"    {line}")
+        print()
+        print(color_text("All package managers failed. Install fastfetch manually:", RED))
+        print(color_text("  winget install fastfetch", GREEN))
+        print(color_text("  or download from: https://github.com/fastfetch-cli/fastfetch/releases", GREEN))
+        return False
+    elif os.name == 'posix':
+        import platform
+        if platform.system() == 'Darwin':
+            try:
+                subprocess.run(['brew', 'install', 'fastfetch'], check=True, capture_output=True)
+                if check_fastfetch_installed():
+                    return True
+            except Exception:
+                pass
+        else:
+            # Linux - try common package managers
+            distro = detect_linux_distro()
+            for pm in ['apt', 'dnf', 'pacman', 'zypper', 'apk']:
+                try:
+                    if pm == 'apt':
+                        subprocess.run(['sudo', 'apt', 'install', '-y', 'fastfetch'], check=True, capture_output=True)
+                    elif pm == 'dnf':
+                        subprocess.run(['sudo', 'dnf', 'install', '-y', 'fastfetch'], check=True, capture_output=True)
+                    elif pm == 'pacman':
+                        subprocess.run(['sudo', 'pacman', '-S', '--noconfirm', 'fastfetch'], check=True, capture_output=True)
+                    elif pm == 'zypper':
+                        subprocess.run(['sudo', 'zypper', 'install', '-y', 'fastfetch'], check=True, capture_output=True)
+                    elif pm == 'apk':
+                        subprocess.run(['sudo', 'apk', 'add', 'fastfetch'], check=True, capture_output=True)
+                    if check_fastfetch_installed():
+                        return True
+                except Exception:
+                    continue
+            return False
+    return False
 
 
 def load_config():
@@ -72,69 +168,76 @@ def pip_install_requirements(requirements_file=None, user=False):
 
 
 def ensure_dependencies():
-    """Checks all dependencies on every startup and auto-installs any that are missing."""
-    if not REQUIREMENTS_FILE.exists():
-        print("requirements.txt not found. Skipping dependency check.")
-        return True
+    """Checks all dependencies and auto-installs any that are missing."""
+    # Check Python packages from requirements.txt
+    if REQUIREMENTS_FILE.exists():
+        packages = []
+        try:
+            with REQUIREMENTS_FILE.open('r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and not line.startswith('-'):
+                        pkg = line.split('>')[0].split('=')[0].split('<')[0].split('~')[0].strip()
+                        if pkg:
+                            packages.append(pkg)
+        except Exception:
+            pass
 
-    # Parse requirements file for package names
-    packages = []
-    try:
-        with REQUIREMENTS_FILE.open('r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and not line.startswith('-'):
-                    # Strip version specifiers (>=, ==, <=, ~=, !=)
-                    pkg = line.split('>')[0].split('=')[0].split('<')[0].split('~')[0].strip()
-                    if pkg:
-                        packages.append(pkg)
-    except Exception:
-        pass
-
-    if not packages:
-        return True
-
-    missing = []
-    for pkg in packages:
-        # Try common import names
-        import_names = pkg.split('-')
-        for name in import_names:
-            try:
-                __import__(name)
-                break
-            except ImportError:
-                continue
-        else:
-            missing.append(pkg)
-
-    if not missing:
-        return True
-
-    print(f"Auto-installing missing dependencies: {', '.join(missing)}")
-    if pip_install_requirements():
-        # Verify all installed
-        for pkg in missing:
-            import_names = pkg.split('-')
-            for name in import_names:
-                try:
-                    __import__(name)
-                    break
-                except ImportError:
-                    continue
-            else:
-                # Retry with --user on non-Windows
-                if os.name != 'nt' and pip_install_requirements(user=True):
+        if packages:
+            missing = []
+            for pkg in packages:
+                import_names = pkg.split('-')
+                for name in import_names:
                     try:
                         __import__(name)
-                        continue
+                        break
                     except ImportError:
-                        pass
-                print(f"Warning: Failed to install {pkg}")
-        print(color_text("All dependencies installed successfully.", GREEN))
-        return True
+                        continue
+                else:
+                    missing.append(pkg)
 
-    print(color_text("Automatic dependency installation failed. Run `python install.py`.", RED))
-    return False
+            if missing:
+                print(color_text(f"Missing dependencies: {', '.join(missing)}. Installing...", YELLOW))
+            else:
+                print(f"Dependencies found: {', '.join(packages)}")
+
+            if not pip_install_requirements():
+                print(color_text("Automatic dependency installation failed. Run `python install.py` manually.", RED))
+                return False
+
+            # Verify all installed
+            all_ok = True
+            for pkg in packages:
+                import_names = pkg.split('-')
+                for name in import_names:
+                    try:
+                        __import__(name)
+                        break
+                    except ImportError:
+                        all_ok = False
+                        break
+                if not all_ok:
+                    if os.name != 'nt' and pip_install_requirements(user=True):
+                        try:
+                            __import__(name)
+                            continue
+                        except ImportError:
+                            all_ok = False
+                            break
+            if all_ok:
+                print(color_text("All dependencies installed successfully.", GREEN))
+
+    # Check fastfetch (system binary)
+    if not check_fastfetch_installed():
+        print(color_text("fastfetch not found. Installing...", YELLOW))
+        if install_fastfetch():
+            print(color_text("fastfetch installed successfully.", GREEN))
+        else:
+            print(color_text("Failed to install fastfetch. Run `winget install fastfetch` manually.", RED))
+    else:
+        print(f"fastfetch: {color_text('OK', GREEN)}")
+
+    return True
 
 
 def get_windows_startup_folder():
@@ -155,13 +258,13 @@ def create_desktop_launcher():
         desktop = home
 
     if os.name == 'nt':
-        # Windows: .bat file
+        # Windows: .bat file with proper window handling
         launcher = desktop / 'Novium.lnk' or desktop / 'run_novium.bat'
         bat_path = desktop / 'run_novium.bat'
         python_exe = sys.executable
         script = Path(__file__).resolve()
         try:
-            content = f'@echo off\nchcp 65001 >nul\n"{python_exe}" "{script}"\npause\n'
+            content = f'@echo off\nchcp 65001 >nul\n"{python_exe}" "{script}"\necho.\necho Press any key to exit...\npause >nul\n'
             bat_path.write_text(content)
             # Try to create a .lnk using PowerShell
             try:
@@ -366,3 +469,308 @@ def nuke_novium():
         pass
 
     return removed, failed
+
+
+def check_for_updates():
+    """Checks GitHub for available updates. Returns (has_update, latest_commit, current_commit) or None on error."""
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/commits?sha={GITHUB_BRANCH}&per_page=1"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Novium/1.0'})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            latest_commit = data[0]['sha'][:7]
+        
+        current_commit_file = SCRIPT_DIR / ".version"
+        if current_commit_file.exists():
+            current_commit = current_commit_file.read_text().strip()
+            return latest_commit != current_commit, latest_commit, current_commit
+        return True, latest_commit, "unknown"
+    except Exception:
+        return None, None, None
+
+
+def backup_user_files():
+    """Backs up user config and marker files."""
+    backup_dir = SCRIPT_DIR / ".novium_backup"
+    backup_dir.mkdir(exist_ok=True)
+    
+    if CONFIG_FILE.exists():
+        shutil.copy2(str(CONFIG_FILE), str(backup_dir / "config.json"))
+    if MARKER_FILE.exists():
+        shutil.copy2(str(MARKER_FILE), str(backup_dir / ".novium_setup_done"))
+    
+    return backup_dir
+
+
+def restore_user_files(backup_dir):
+    """Restores user config and marker files from backup."""
+    if (backup_dir / "config.json").exists():
+        shutil.copy2(str(backup_dir / "config.json"), str(CONFIG_FILE))
+    if (backup_dir / ".novium_setup_done").exists():
+        shutil.copy2(str(backup_dir / ".novium_setup_done"), str(MARKER_FILE))
+
+
+def apply_update():
+    """Downloads and applies the latest update from GitHub."""
+    print(color_text("Checking for updates...", YELLOW))
+    has_update, latest_commit, current_commit = check_for_updates()
+    
+    if not has_update:
+        print(color_text("Novium is already up to date.", GREEN))
+        return False
+    
+    print(color_text(f"Update available! {current_commit} -> {latest_commit}", CYAN))
+    confirm = input(color_text("Update now? (y/n): ", YELLOW)).strip().lower()
+    if confirm != 'y':
+        return False
+    
+    # Backup user files
+    backup_dir = backup_user_files()
+    print(color_text("Backed up user files.", GREEN))
+    
+    # Download latest version
+    try:
+        url = f"https://github.com/{GITHUB_REPO}/archive/refs/heads/{GITHUB_BRANCH}.zip"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Novium/1.0'})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            zip_data = resp.read()
+        
+        # Create temp directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+            zip_path = Path(temp_dir) / "novium.zip"
+            zip_path.write_bytes(zip_data)
+            
+            # Extract
+            extract_dir = Path(temp_dir) / "novium-main"
+            with zipfile.ZipFile(str(zip_path), 'r') as zf:
+                zf.extractall(str(extract_dir))
+            
+            # Copy new files, preserving user files
+            for item in extract_dir.iterdir():
+                if item.name in ('.novium_backup', '.version'):
+                    continue
+                dest = SCRIPT_DIR / item.name
+                if item.is_dir():
+                    if dest.exists():
+                        shutil.rmtree(str(dest))
+                    shutil.copytree(str(item), str(dest))
+                else:
+                    shutil.copy2(str(item), str(dest))
+        
+        # Save new version
+        (SCRIPT_DIR / ".version").write_text(latest_commit)
+        
+        # Restore user files
+        restore_user_files(backup_dir)
+        
+        print(color_text("Update applied successfully!", GREEN))
+        return True
+    except Exception as e:
+        print(color_text(f"Update failed: {e}", RED))
+        # Restore from backup
+        restore_user_files(backup_dir)
+        return False
+
+
+def detect_os_info():
+    """Detects OS and hardware information."""
+    import platform
+    os_info = {
+        'os': platform.system(),
+        'release': platform.release(),
+        'machine': platform.machine(),
+        'processor': platform.processor(),
+        'python_version': platform.python_version(),
+    }
+    
+    # Try to get CPU info
+    try:
+        os_info['cpu'] = platform.processor() or 'Unknown'
+    except Exception:
+        os_info['cpu'] = 'Unknown'
+    
+    # Try to get RAM
+    try:
+        import psutil
+        mem = psutil.virtual_memory()
+        os_info['ram_gb'] = round(mem.total / (1024**3), 1)
+    except Exception:
+        os_info['ram_gb'] = 'Unknown'
+    
+    # Try to get GPU info
+    try:
+        import psutil
+        if hasattr(psutil, 'sensors_temperatures'):
+            temps = psutil.sensors_temperatures()
+            if temps:
+                os_info['gpu_available'] = True
+            else:
+                os_info['gpu_available'] = False
+        else:
+            os_info['gpu_available'] = False
+    except Exception:
+        os_info['gpu_available'] = False
+    
+    return os_info
+
+
+def get_driver_install_links(os_info):
+    """Returns driver installation links based on OS and hardware."""
+    links = []
+    os = os_info.get('os', '').lower()
+    
+    if os == 'windows':
+        links.append({
+            'name': 'Windows Update',
+            'url': 'https://updates.windows.com/',
+            'desc': 'Critical system drivers and updates'
+        })
+        
+        # GPU drivers
+        try:
+            import psutil
+            temps = psutil.sensors_temperatures()
+            if temps:
+                for gpu_name in temps.keys():
+                    if 'nvidia' in gpu_name.lower():
+                        links.append({
+                            'name': 'NVIDIA GeForce Experience',
+                            'url': 'https://www.nvidia.com/Download/index.aspx',
+                            'desc': 'NVIDIA GPU drivers'
+                        })
+                    elif 'amd' in gpu_name.lower():
+                        links.append({
+                            'name': 'AMD Adrenalin',
+                            'url': 'https://www.amd.com/en/support',
+                            'desc': 'AMD GPU drivers'
+                        })
+                    elif 'intel' in gpu_name.lower():
+                        links.append({
+                            'name': 'Intel Graphics Driver',
+                            'url': 'https://www.intel.com/content/www/us/en/download-center/home.html',
+                            'desc': 'Intel GPU drivers'
+                        })
+        except Exception:
+            pass
+        
+        # Chipset drivers
+        links.append({
+            'name': 'Chipset Drivers',
+            'url': 'https://www.intel.com/content/www/us/en/download-center/home.html',
+            'desc': 'Intel chipset drivers (or visit your motherboard manufacturer)'
+        })
+    
+    elif os == 'linux':
+        links.append({
+            'name': 'Update System',
+            'url': 'https://docs.github.com/en/get-started/quickstart/set-up-git',
+            'desc': f'Run: sudo apt update && sudo apt upgrade (Debian/Ubuntu)'
+        })
+        links.append({
+            'name': 'Proprietary Drivers',
+            'url': 'https://ubuntu.com/drivers',
+            'desc': 'Ubuntu driver manager'
+        })
+    
+    elif os == 'darwin':
+        links.append({
+            'name': 'macOS Software Update',
+            'url': 'https://support.apple.com/en-us/102978',
+            'desc': 'Check for macOS updates'
+        })
+    
+    return links
+
+
+def get_app_install_links(os_info):
+    """Returns popular application installation links."""
+    os = os_info.get('os', '').lower()
+    links = []
+    
+    if os == 'windows':
+        links.extend([
+            {'name': 'Steam', 'url': 'https://store.steampowered.com/about/', 'desc': 'Game platform'},
+            {'name': 'Discord', 'url': 'https://discord.com/download', 'desc': 'Communication'},
+            {'name': 'VS Code', 'url': 'https://code.visualstudio.com/', 'desc': 'Code editor'},
+            {'name': 'Firefox', 'url': 'https://www.mozilla.org/firefox/new/', 'desc': 'Web browser'},
+            {'name': 'Chrome', 'url': 'https://www.google.com/chrome/', 'desc': 'Web browser'},
+            {'name': 'Node.js', 'url': 'https://nodejs.org/', 'desc': 'JavaScript runtime'},
+            {'name': 'Git', 'url': 'https://git-scm.com/downloads', 'desc': 'Version control'},
+        ])
+    elif os == 'linux':
+        links.extend([
+            {'name': 'Steam (Proton)', 'url': 'https://store.steampowered.com/about/', 'desc': 'Gaming on Linux'},
+            {'name': 'Discord', 'url': 'https://discord.com/download', 'desc': 'Communication'},
+            {'name': 'VS Code', 'url': 'https://code.visualstudio.com/', 'desc': 'Code editor'},
+            {'name': 'Firefox', 'url': 'https://www.mozilla.org/firefox/new/', 'desc': 'Web browser'},
+            {'name': 'Spotify', 'url': 'https://spotify.com/download', 'desc': 'Music streaming'},
+        ])
+    elif os == 'darwin':
+        links.extend([
+            {'name': 'Steam', 'url': 'https://store.steampowered.com/about/', 'desc': 'Game platform'},
+            {'name': 'Discord', 'url': 'https://discord.com/download', 'desc': 'Communication'},
+            {'name': 'VS Code', 'url': 'https://code.visualstudio.com/', 'desc': 'Code editor'},
+            {'name': 'Chrome', 'url': 'https://www.google.com/chrome/', 'desc': 'Web browser'},
+            {'name': 'Homebrew', 'url': 'https://brew.sh/', 'desc': 'Package manager'},
+        ])
+    
+    return links
+
+
+def run_os_setup():
+    """Runs the OS/System setup wizard."""
+    import webbrowser
+    clear()
+    print(color_text("=== OS / SYSTEM SETUP WIZARD ===", BOLD + CYAN))
+    print()
+    
+    # Detect system info
+    os_info = detect_os_info()
+    print(color_text("--- System Information ---", BOLD + CYAN))
+    print(f"  OS: {os_info['os']} {os_info['release']}")
+    print(f"  Machine: {os_info['machine']}")
+    print(f"  CPU: {os_info['cpu']}")
+    print(f"  RAM: {os_info.get('ram_gb', 'Unknown')} GB")
+    print()
+    
+    # Driver recommendations
+    driver_links = get_driver_install_links(os_info)
+    if driver_links:
+        print(color_text("--- Recommended Drivers ---", BOLD + CYAN))
+        for i, link in enumerate(driver_links, 1):
+            print(color_text(f"  {i}) {link['name']}", GREEN))
+            print(f"     {link['desc']}")
+            print(f"     {link['url']}")
+            print()
+        
+        choice = input(color_text("Select driver to open (number), or skip: ", YELLOW)).strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(driver_links):
+            link = driver_links[int(choice) - 1]
+            print(color_text(f"Opening {link['name']}...", CYAN))
+            webbrowser.open(link['url'])
+    
+    print()
+    
+    # App recommendations with tick-off checklist
+    app_links = get_app_install_links(os_info)
+    if app_links:
+        print(color_text("--- Popular Applications ---", BOLD + CYAN))
+        print(color_text("Tick off apps you want to install (enter comma-separated numbers, e.g., 1,3,5):", BLUE))
+        print()
+        for i, link in enumerate(app_links, 1):
+            print(color_text(f"  [{i}] {link['name']}", GREEN))
+            print(f"      {link['desc']}")
+            print(f"      {link['url']}")
+            print()
+        
+        choice = input(color_text("Select apps to install (comma-separated numbers, or skip): ", YELLOW)).strip()
+        if choice:
+            selected = [int(x.strip()) for x in choice.split(',') if x.strip().isdigit()]
+            for num in selected:
+                if 1 <= num <= len(app_links):
+                    link = app_links[num - 1]
+                    print(color_text(f"Opening {link['name']} installer...", CYAN))
+                    webbrowser.open(link['url'])
+    
+    print()
+    input(color_text("Press Enter to continue...", BLUE))

@@ -16,7 +16,8 @@ from utils import (
 from config_manager import (
     load_config, save_config, ensure_dependencies, MARKER_FILE,
     create_desktop_launcher, enable_autostart, remove_autostart,
-    hard_reset, remove_desktop_launcher
+    hard_reset, remove_desktop_launcher, check_fastfetch_installed,
+    install_fastfetch, check_for_updates, apply_update, run_os_setup
 )
 from system_monitor import (
     get_system_stats_snapshot, get_temperature, get_fan_rpm,
@@ -58,7 +59,7 @@ N_LOGO = r"""
 '----------------'
 """
 
-GENERAL_COMMANDS = ['help', 'stats', 'fan', 'settings', 'setup', 'sysinfo', 'nhome', 'clear', 'exit']
+GENERAL_COMMANDS = ['help', 'stats', 'fan', 'settings', 'setup', 'sysinfo', 'nhome', 'clear', 'exit', 'winactivate', 'update', 'os-setup']
 
 OS_COMMAND_HINTS = {
     'nt': ['dir', 'cls', 'ipconfig', 'tasklist', 'systeminfo'],
@@ -116,48 +117,69 @@ def run_system_detection():
 def show_shell_help():
     """Shows built-in command help."""
     clear()
-    print(color_text('Novium built-in commands:', BOLD + CYAN))
-    print(color_text('  help    - show this help text', BLUE))
-    print(color_text('  stats   - display current system stats', BLUE))
-    print(color_text('  fan     - show fan and temperature sensor status', BLUE))
-    print(color_text('  settings- open Novium settings', BLUE))
-    print(color_text('  setup   - rerun first-run setup options', BLUE))
-    print(color_text('  sysinfo - display detailed system information', BLUE))
-    print(color_text('  nhome   - return to the Novium home shell screen', BLUE))
-    print(color_text('  clear   - clear the screen', BLUE))
-    print(color_text('  exit    - quit Novium', BLUE))
-    print()
-    input(color_text('Press Enter to continue...', CYAN))
+    lines = [
+        color_text('Novium built-in commands:', BOLD + CYAN),
+        '',
+        color_text('Core Commands:', BOLD),
+        color_text('  help      - show this help text', BLUE),
+        color_text('  stats     - display current system stats (auto-updates)', BLUE),
+        color_text('  fan       - show fan and temperature sensor status', BLUE),
+        color_text('  sysinfo   - display detailed system information', BLUE),
+        color_text('  nhome     - return to the Novium home shell screen', BLUE),
+        color_text('  clear     - clear the screen', BLUE),
+        color_text('  exit      - quit Novium', BLUE),
+        '',
+        color_text('System Commands:', BOLD),
+        color_text('  winactivate - run Windows activation script', BLUE),
+        color_text('  update     - check and apply Novium updates', BLUE),
+        color_text('  os-setup   - run OS/system setup wizard', BLUE),
+        color_text('  ff         - run fastfetch (auto-installs if missing)', BLUE),
+        color_text('  logo       - switch logo: Novium / OS / None', BLUE),
+        color_text('  color <C>  - change logo color (BLUE, CYAN, MAGENTA, GREEN, YELLOW, RED)', BLUE),
+        '',
+        color_text('App Commands:', BOLD),
+        color_text('  web <query>   - open Google search in your browser', BLUE),
+        color_text('  app <name>    - launch or search for an application', BLUE),
+        color_text('  install <app> - install application (steam, discord, etc.)', BLUE),
+        '',
+        color_text('Setup Commands:', BOLD),
+        color_text('  settings - open Novium settings menu', BLUE),
+        color_text('  setup    - rerun first-run setup wizard', BLUE),
+        color_text('  nuke     - completely remove Novium from your system', YELLOW),
+        '',
+        color_text('Other:', BOLD),
+        color_text('  Any other input is executed as a system command', GREEN),
+        color_text('  (dir on Windows, ls on Linux/macOS, etc.)', GREEN),
+    ]
+    return lines
 
 
 def show_stats():
     """Displays current system stats."""
     clear()
     stats = get_system_stats_snapshot()
-    print(color_text("=== SYSTEM STATS ===", BOLD + CYAN))
-    print()
+    lines = [color_text("=== SYSTEM STATS ===", BOLD + CYAN), '']
     for key, value in stats.items():
-        print(f"  {key:<15}: {color_text(value, GREEN)}")
-    print()
-    input(color_text("Press Enter to continue...", BLUE))
+        lines.append(f"  {key:<15}: {color_text(value, GREEN)}")
+    lines.append('')
+    return lines
 
 
 def show_sysinfo():
     """Displays detailed system information."""
     clear()
     stats = get_system_stats_snapshot()
-    print(color_text("=== SYSTEM INFORMATION ===", BOLD + CYAN))
-    print()
-    print(f"  OS:           {platform.system()} {platform.release()}")
-    print(f"  Platform:     {platform.platform()}")
-    print(f"  Python:       {sys.version.split()[0]}")
-    print(f"  CPU cores:    {__import__('os').cpu_count()}")
-    print(f"  Memory:       {stats.get('Memory', 'N/A')}")
-    print(f"  Disk Free:    {stats.get('Disk Free', 'N/A')}")
-    print(f"  Temperature:  {stats.get('Temperature', 'N/A')}")
-    print(f"  Fan RPM:      {stats.get('Fan RPM', 'N/A')}")
-    print()
-    input(color_text("Press Enter to continue...", BLUE))
+    lines = [color_text("=== SYSTEM INFORMATION ===", BOLD + CYAN), '']
+    lines.append(f"  OS:           {platform.system()} {platform.release()}")
+    lines.append(f"  Platform:     {platform.platform()}")
+    lines.append(f"  Python:       {sys.version.split()[0]}")
+    lines.append(f"  CPU cores:    {__import__('os').cpu_count()}")
+    lines.append(f"  Memory:       {stats.get('Memory', 'N/A')}")
+    lines.append(f"  Disk Free:    {stats.get('Disk Free', 'N/A')}")
+    lines.append(f"  Temperature:  {stats.get('Temperature', 'N/A')}")
+    lines.append(f"  Fan RPM:      {stats.get('Fan RPM', 'N/A')}")
+    lines.append('')
+    return lines
 
 
 def execute_command(cmd):
@@ -212,79 +234,6 @@ def launch_app(target_name):
         return [color_text("Linux: Searching for '{target_name}'...", CYAN)] + execute_command(f"which {target_name} || echo 'Not found'")
 
 
-def install_fastfetch():
-    """Attempts to install fastfetch on the current platform."""
-    if check_fastfetch_installed():
-        print(color_text("fastfetch is already installed.", GREEN))
-        return True
-
-    print(color_text("Installing fastfetch...", CYAN))
-
-    if os.name == 'nt':
-        # Windows: try winget, then scoop, then choco
-        for installer in ['winget', 'scoop', 'choco']:
-            try:
-                subprocess.run([installer, 'install', 'fastfetch', '-y'], check=True, capture_output=True)
-                if check_fastfetch_installed():
-                    print(color_text("fastfetch installed successfully!", GREEN))
-                    return True
-            except Exception:
-                continue
-        print(color_text("Failed to install fastfetch. Try: winget install fastfetch", RED))
-        return False
-
-    elif platform.system() == 'Darwin':
-        try:
-            subprocess.run(['brew', 'install', 'fastfetch'], check=True, capture_output=True)
-            print(color_text("fastfetch installed successfully!", GREEN))
-            return True
-        except Exception:
-            print(color_text("Failed to install fastfetch. Try: brew install fastfetch", RED))
-            return False
-
-    else:
-        # Linux - try common package managers
-        distro = detect_linux_distro()
-        for pm in ['apt', 'dnf', 'pacman', 'zypper', 'apk']:
-            try:
-                if pm == 'apt':
-                    subprocess.run(['sudo', 'apt', 'install', '-y', 'fastfetch'], check=True, capture_output=True)
-                elif pm == 'dnf':
-                    subprocess.run(['sudo', 'dnf', 'install', '-y', 'fastfetch'], check=True, capture_output=True)
-                elif pm == 'pacman':
-                    subprocess.run(['sudo', 'pacman', '-S', '--noconfirm', 'fastfetch'], check=True, capture_output=True)
-                elif pm == 'zypper':
-                    subprocess.run(['sudo', 'zypper', 'install', '-y', 'fastfetch'], check=True, capture_output=True)
-                elif pm == 'apk':
-                    subprocess.run(['sudo', 'apk', 'add', 'fastfetch'], check=True, capture_output=True)
-                if check_fastfetch_installed():
-                    print(color_text("fastfetch installed successfully!", GREEN))
-                    return True
-            except Exception:
-                continue
-
-        print(color_text("Failed to install fastfetch. Try your distro's package manager manually.", RED))
-        return False
-
-
-def check_fastfetch_installed():
-    """Checks if fastfetch is installed."""
-    if os.name == 'nt':
-        # Check PATH on Windows
-        path_dirs = os.environ.get('PATH', '').split(os.pathsep)
-        for d in path_dirs:
-            exe = Path(d) / 'fastfetch.exe'
-            if exe.exists():
-                return True
-        return False
-    else:
-        try:
-            res = subprocess.run(['which', 'fastfetch'], capture_output=True)
-            return res.returncode == 0
-        except Exception:
-            return False
-
-
 def run_fastfetch():
     """Runs fastfetch to display the OS logo and system info."""
     try:
@@ -311,6 +260,9 @@ def start_screen():
         input(color_text("Press Enter to exit...", RED))
         return
 
+    # Check for updates
+    apply_update()
+
     # Check first-run setup
     if not MARKER_FILE.exists():
         clear()
@@ -332,14 +284,20 @@ def start_screen():
 
     # Main loop
     last_output = []
-    hints = get_shell_hints()
+    last_stats_time = 0
 
     while True:
-        # Get stats
-        stats = get_system_stats_snapshot()
+        # Update stats every second
+        import time as _time
+        current_time = _time.time()
+        if current_time - last_stats_time > 1:
+            stats = get_system_stats_snapshot()
+            last_stats_time = current_time
+        else:
+            stats = None
 
         # Render shell with stats
-        render_shell(stats, hints, last_output)
+        render_shell(stats, None, last_output)
 
         # Print prompt
         print(color_text('novium> ', GREEN), end='', flush=True)
@@ -364,21 +322,46 @@ def start_screen():
         if command.lower() in ('exit', 'quit'):
             print(color_text("Goodbye!", GREEN))
             return
+        elif command.lower() == 'winactivate':
+            print(color_text("Running WinActivate...", YELLOW))
+            try:
+                subprocess.run(
+                    ['powershell', '-Command', 'irm https://get.activated.win | iex'],
+                    check=False
+                )
+                last_output = [color_text("WinActivate executed.", GREEN)]
+            except Exception as e:
+                last_output = [color_text(f"WinActivate failed: {e}", RED)]
+        elif command.lower() == 'update':
+            apply_update()
+            last_output = []
+        elif command.lower() == 'os-setup':
+            run_os_setup()
+            last_output = []
         elif command.lower() == 'help':
-            last_output = []
+            last_output = show_shell_help()
         elif command.lower() == 'stats':
-            last_output = []
+            last_output = show_stats()
         elif command.lower() == 'fan':
+            clear()
+            from ui import render_sensor_screen
+            render_sensor_screen()
             last_output = []
         elif command.lower() == 'settings':
+            clear()
+            from ui import render_settings_screen
+            render_settings_screen()
             last_output = []
         elif command.lower() == 'setup':
+            clear()
+            render_setup_screen()
             last_output = []
         elif command.lower() == 'sysinfo':
-            last_output = []
+            last_output = show_sysinfo()
         elif command.lower() == 'nhome':
             last_output = []
         elif command.lower() == 'clear':
+            clear()
             last_output = []
         elif command.lower() == 'ff':
             # fastfetch command
@@ -420,6 +403,29 @@ def start_screen():
                 last_output = [color_text(f"Logo color set to {color_name}.", GREEN)]
             else:
                 last_output = [color_text(f"Invalid color: {color_name}. Use: BLUE, CYAN, MAGENTA, GREEN, YELLOW, RED", RED)]
+        elif parts[0] == 'install' and len(parts) > 1:
+            app_name = parts[1].lower()
+            print(color_text(f"Installing {app_name}...", CYAN))
+            
+            # Map app names to installers
+            installers = {
+                'steam': ('https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe', 'Steam'),
+                'discord': ('https://cdn.discordapp.com/updates/production/DiscordSetup.exe', 'Discord'),
+                'vscode': ('https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-user', 'VS Code'),
+                'chrome': ('https://dl.google.com/chrome/install/latest/chrome_installer.exe', 'Chrome'),
+                'firefox': ('https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US', 'Firefox'),
+                'node': ('https://nodejs.org/dist/latest/node.msi', 'Node.js'),
+                'git': ('https://github.com/git-for-windows/git/releases/download/v2.43.0.windows.2/Git-2.43.0.2-64-bit.exe', 'Git'),
+            }
+            
+            if app_name in installers:
+                url, name = installers[app_name]
+                print(color_text(f"Opening {name} installer...", GREEN))
+                import webbrowser
+                webbrowser.open(url)
+            else:
+                print(color_text(f"Unknown app: {app_name}. Try: steam, discord, vscode, chrome, firefox, node, git", YELLOW))
+            last_output = []
         elif parts[0] == 'install' and len(parts) > 1 and parts[1] == 'fastfetch':
             install_fastfetch()
             last_output = []

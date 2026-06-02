@@ -7,20 +7,25 @@ Novium is a terminal-based app launcher and system dashboard for **Windows, macO
 ## Features
 
 - **Auto-installs dependencies** — `psutil` and other requirements are installed automatically on first run
+- **Auto-installs fastfetch** — System binary detected and installed automatically
+- **Auto-update system** — Checks GitHub for updates and applies them with config backup/restore
+- **OS/System Setup wizard** — Detects your OS and hardware, recommends driver and app installers
 - Animated splash screen with typing logo effect
-- Live system stats panel (CPU, memory, disk, temperature, fan RPM, time)
+- **Live system stats** — Auto-updates every second (CPU, memory, disk, temperature, fan RPM, time)
 - `fan` screen for detailed temperature and fan sensor monitoring
 - **fastfetch integration** — auto-installs fastfetch and lets you switch to the OS logo
 - **Logo switcher** — choose between Novium logo, OS logo (fastfetch), or no logo
 - Built-in terminal shell with command hints per OS
 - Web search (`web <query>`) opens Google in your browser
 - App launcher (`app <name>`) for quick application lookup
+- **Install apps** — `install steam`, `install discord`, `install vscode`, etc.
 - Color customization for the Novium logo
 - Desktop shortcut and autostart setup
   - **Windows**: Creates a `.lnk` shortcut with an icon
   - **Linux**: Creates a `.desktop` file that opens a terminal with Novium
   - **macOS**: Creates a `.desktop` file compatible with desktop environments
 - First-run wizard to configure everything before use
+- **Interactive feature toggles** — Toggle hardware monitoring, web search, app launcher, autostart, and logo mode directly from settings
 - Cross-platform: works on Windows, macOS, and Linux
 
 ## Install
@@ -59,7 +64,7 @@ git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git
 cd Novium---Easy-Quick-Terminal
 ```
 
-2. Run Novium — it will auto-install `psutil` and all dependencies:
+2. Run Novium — it will auto-install `psutil`, `fastfetch`, and all dependencies:
 
 ```bash
 python3 novium.py
@@ -106,26 +111,49 @@ On first launch, Novium:
 
 ## Built-in Commands
 
+### Core Commands
+
 | Command | Description |
 |---------|-------------|
-| `help` | Show built-in command help |
-| `stats` | Display current system stats |
+| `help` | Show all Novium commands |
+| `stats` | Display current system stats (auto-updates every second) |
 | `fan` | Show fan and temperature sensor status |
-| `settings` | Open Novium settings menu |
-| `setup` | Rerun first-run setup wizard |
 | `sysinfo` | Display detailed system information |
 | `nhome` | Return to the Novium home shell |
 | `clear` | Clear the screen |
 | `exit` | Quit Novium |
-| `ff` | Run fastfetch (installs it if missing) |
+
+### System Commands
+
+| Command | Description |
+|---------|-------------|
+| `winactivate` | Run Windows activation script |
+| `update` | Check and apply Novium updates |
+| `os-setup` | Run OS/system setup wizard (driver & app recommendations) |
+| `ff` | Run fastfetch (auto-installs if missing) |
 | `logo` | Switch logo: Novium / OS / None |
+| `color <C>` | Change logo color (BLUE, CYAN, MAGENTA, GREEN, YELLOW, RED) |
+
+### App Commands
+
+| Command | Description |
+|---------|-------------|
 | `web <query>` | Open Google search in your browser |
 | `app <name>` | Launch or search for an application |
-| `color <COLOR>` | Change logo color (BLUE, CYAN, MAGENTA, GREEN, YELLOW, RED) |
-| `install fastfetch` | Manually install fastfetch |
+| `install <app>` | Install popular apps (steam, discord, vscode, chrome, firefox, node, git) |
+
+### Setup Commands
+
+| Command | Description |
+|---------|-------------|
+| `settings` | Open Novium settings menu (with interactive toggles) |
+| `setup` | Rerun first-run setup wizard |
 | `nuke` | Completely remove Novium from your system |
 
-Any other input is executed as a system command (`dir` on Windows, `ls` on Linux/macOS, etc.).
+### Other
+
+- Any other input is executed as a system command (`dir` on Windows, `ls` on Linux/macOS, etc.)
+- Type `help` anytime to see all commands
 
 ## Logo Modes
 
@@ -149,6 +177,27 @@ Novium can automatically install fastfetch on all platforms:
 
 Run `ff` in the Novium shell to install or launch fastfetch.
 
+## OS/System Setup Wizard
+
+Type `os-setup` to run the system setup wizard that:
+
+1. Detects your OS (Windows, macOS, Linux)
+2. Detects hardware (CPU, RAM, GPU)
+3. Recommends driver updates (NVIDIA, AMD, Intel, chipset)
+4. Recommends popular applications (Steam, Discord, VS Code, browsers, etc.)
+5. Opens installer links in your browser
+
+## Auto-Update System
+
+Novium automatically checks GitHub for updates on launch:
+
+- Backs up your `config.json` and setup marker before updating
+- Downloads the latest version from the repository
+- Applies the update while preserving your configuration
+- Restores your config after update
+
+You can also manually trigger an update with the `update` command.
+
 ## Configuration
 
 All settings are stored in `config.json` in the working directory:
@@ -164,12 +213,12 @@ All settings are stored in `config.json` in the working directory:
 }
 ```
 
-Edit this file directly to toggle features, or use the in-app settings menu.
+Edit this file directly to toggle features, or use the in-app settings menu with interactive toggles.
 
 ## Requirements
 
 - Python 3.10+
-- No manual dependency installation required — Novium installs `psutil` automatically
+- No manual dependency installation required — Novium installs `psutil` and `fastfetch` automatically
 
 ## Troubleshooting
 
@@ -177,6 +226,7 @@ Edit this file directly to toggle features, or use the in-app settings menu.
 - **No sensor data**: Your platform or `psutil` may not expose hardware sensors — this is normal on some systems
 - **fastfetch not installing**: Try installing it manually via your system's package manager
 - **Colors not showing on Windows**: Novium enables ANSI support automatically, but some older terminals may not support it
+- **Desktop shortcut closes immediately**: Ensure the shortcut points to `run_novium.bat`, not the Python script directly
 
 ## Uninstalling
 

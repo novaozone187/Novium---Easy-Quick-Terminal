@@ -5,7 +5,7 @@ import shutil
 import time
 import subprocess
 
-from utils import color_text, BOLD, BLUE, GREEN, CYAN, clear, set_windows_ansi
+from utils import color_text, BOLD, BLUE, GREEN, CYAN, YELLOW, RED, MAGENTA, clear, set_windows_ansi
 from system_monitor import get_temperature_sensors, get_fan_sensors
 
 # --- Screen Utilities ---
@@ -23,10 +23,14 @@ def display_logo(logo_content, color=None, delay=0.002):
         print()
 
 
-def render_shell(stats, hints, last_output, logo_mode='novium'):
-    """Renders the main shell home screen with logo, stats, and hints."""
+def render_shell(stats, hints, last_output):
+    """Renders the main shell home screen with logo."""
     set_windows_ansi()
     clear()
+
+    from config_manager import load_config
+    config = load_config()
+    logo_mode = config.get('logo_mode', 'novium')
 
     N_LOGO = r"""
 .-----------------.
@@ -49,25 +53,15 @@ def render_shell(stats, hints, last_output, logo_mode='novium'):
         except (subprocess.CalledProcessError, FileNotFoundError):
             print(color_text("fastfetch not found. Run 'ff' to install it.", YELLOW))
         print()
-        left_lines = []
-        left_width = 0
     elif logo_mode == 'none':
-        left_lines = []
-        left_width = 0
+        pass
     else:
         # logo_mode == 'novium'
-        left_lines = N_LOGO.strip().splitlines()
-        left_width = max(len(line) for line in left_lines) + 4
-
-    # Convert stats dict to list of lines for alignment
-    stats_lines = []
-    if isinstance(stats, dict):
-        for key, value in stats.items():
-            stats_lines.append(f"{key}: {value}")
-    elif isinstance(stats, list):
-        stats_lines = stats
-    else:
-        stats_lines = [str(stats)]
+        logo_color_name = config.get('logo_color', 'BLUE')
+        color_mapping = {'BLUE': BLUE, 'CYAN': CYAN, 'MAGENTA': MAGENTA, 'GREEN': GREEN, 'YELLOW': YELLOW, 'RED': RED}
+        logo_color = color_mapping.get(logo_color_name)
+        display_logo(N_LOGO, color=logo_color, delay=0.002)
+        print()
 
     # Print output from last command
     if last_output:
@@ -75,23 +69,14 @@ def render_shell(stats, hints, last_output, logo_mode='novium'):
             print(line)
         print()
 
-    if left_lines:
-        max_lines = max(len(left_lines), max(len(stats_lines), len(hints) + 2))
-        for i in range(max_lines):
-            left = left_lines[i] if i < len(left_lines) else ""
-            right = stats_lines[i] if i < len(stats_lines) else ""
-            print(left.ljust(left_width) + right)
-    else:
-        # No logo - just print stats as a simple list
-        for line in stats_lines:
-            print(line)
+    # Show stats if provided
+    if stats:
+        for key, value in stats.items():
+            print(f"  {key}: {value}")
+        print()
 
-    print()
-    GENERAL_COMMANDS = ['help', 'stats', 'fan', 'settings', 'setup', 'sysinfo', 'nhome', 'clear', 'exit']
-    print(color_text('Novium shell commands: ' + ', '.join(GENERAL_COMMANDS), CYAN))
-    print(color_text('OS hints: ' + ', '.join(hints), BLUE))
-    print(color_text('Type a normal shell command to execute it too.', GREEN))
-    print(color_text('Type nhome to return to the main shell home screen.', GREEN))
+    # Show reminder about help command
+    print(color_text("Tip: Type 'help' to see all Novium commands.", BLUE))
     print()
 
 
@@ -156,18 +141,7 @@ def render_settings_screen():
             input(color_text('Press Enter to return to Settings...', CYAN))
         elif choice == '4':
             clear()
-            from config_manager import load_config, save_config
-            config = load_config()
-            print(color_text("=== FEATURE TOGGLES ===", BOLD + CYAN))
-            print()
-            print(f"  Hardware Monitoring: {color_text('Enabled' if config['hardware_monitoring'] else 'Disabled', GREEN if config['hardware_monitoring'] else RED)}")
-            print(f"  Web Search:          {color_text('Enabled' if config['web_search_enabled'] else 'Disabled', GREEN if config['web_search_enabled'] else RED)}")
-            print(f"  App Launcher:        {color_text('Enabled' if config['app_launcher_active'] else 'Disabled', GREEN if config['app_launcher_active'] else RED)}")
-            print(f"  Autostart:           {color_text('Enabled' if config['autostart_enabled'] else 'Disabled', GREEN if config['autostart_enabled'] else RED)}")
-            print(f"  Logo Mode:           {color_text(config.get('logo_mode', 'novium'), CYAN)}")
-            print()
-            print(color_text("To toggle, edit config.json directly.", BLUE))
-            input(color_text('Press Enter to continue...', CYAN))
+            _manage_feature_toggles()
         elif choice == '5':
             return
         else:
@@ -206,18 +180,7 @@ def render_setup_screen():
             input(color_text('Press Enter to return to setup...', CYAN))
         elif choice == '4':
             clear()
-            from config_manager import load_config, save_config
-            config = load_config()
-            print(color_text("=== FEATURE TOGGLES ===", BOLD + CYAN))
-            print()
-            print(f"  Hardware Monitoring: {color_text('Enabled' if config['hardware_monitoring'] else 'Disabled', GREEN if config['hardware_monitoring'] else RED)}")
-            print(f"  Web Search:          {color_text('Enabled' if config['web_search_enabled'] else 'Disabled', GREEN if config['web_search_enabled'] else RED)}")
-            print(f"  App Launcher:        {color_text('Enabled' if config['app_launcher_active'] else 'Disabled', GREEN if config['app_launcher_active'] else RED)}")
-            print(f"  Autostart:           {color_text('Enabled' if config['autostart_enabled'] else 'Disabled', GREEN if config['autostart_enabled'] else RED)}")
-            print(f"  Logo Mode:           {color_text(config.get('logo_mode', 'novium'), CYAN)}")
-            print()
-            print(color_text("To toggle, edit config.json directly.", BLUE))
-            input(color_text('Press Enter to continue...', CYAN))
+            _manage_feature_toggles()
         elif choice == '5':
             # Mark setup as complete
             from config_manager import MARKER_FILE
@@ -251,7 +214,8 @@ def _customize_logo_color():
                 print(color_text(f'{key}) {name}', BLUE))
             else:
                 selected = ' (current)' if current == name else ''
-                print(color_text(f'{key}) {name}{selected}', color_text('', name)))
+                color_code = {'BLUE': BLUE, 'CYAN': CYAN, 'MAGENTA': MAGENTA, 'GREEN': GREEN, 'YELLOW': YELLOW, 'RED': RED}[name]
+                print(color_text(f'{key}) {name}{selected}', color_code))
         print()
         choice = input(color_text('Select > ', GREEN)).strip()
         if choice == '7':
@@ -263,6 +227,66 @@ def _customize_logo_color():
             current = mapping[choice]
             print(color_text(f'Logo color set to {current}.', GREEN))
             time.sleep(1)
+            break
+        else:
+            print(color_text('Invalid option', RED))
+            time.sleep(1)
+
+
+def _manage_feature_toggles():
+    """Interactive feature toggle menu."""
+    from config_manager import load_config, save_config
+    config = load_config()
+    while True:
+        clear()
+        print(color_text("=== FEATURE TOGGLES ===", BOLD + CYAN))
+        print()
+        print(f"  1) Hardware Monitoring: {color_text('Enabled' if config['hardware_monitoring'] else 'Disabled', GREEN if config['hardware_monitoring'] else RED)}")
+        print(f"  2) Web Search:          {color_text('Enabled' if config['web_search_enabled'] else 'Disabled', GREEN if config['web_search_enabled'] else RED)}")
+        print(f"  3) App Launcher:        {color_text('Enabled' if config['app_launcher_active'] else 'Disabled', GREEN if config['app_launcher_active'] else RED)}")
+        print(f"  4) Autostart:           {color_text('Enabled' if config['autostart_enabled'] else 'Disabled', GREEN if config['autostart_enabled'] else RED)}")
+        print(f"  5) Logo Mode:           {color_text(config.get('logo_mode', 'novium'), CYAN)}")
+        print()
+        print(color_text("Select a number to toggle, or 0 to go back:", BLUE))
+        toggle_choice = input(color_text("Select > ", GREEN)).strip()
+        if toggle_choice == '1':
+            config['hardware_monitoring'] = not config['hardware_monitoring']
+            save_config(config)
+            status = 'Enabled' if config['hardware_monitoring'] else 'Disabled'
+            print(color_text(f"Hardware Monitoring: {status}.", GREEN))
+            time.sleep(1)
+        elif toggle_choice == '2':
+            config['web_search_enabled'] = not config['web_search_enabled']
+            save_config(config)
+            status = 'Enabled' if config['web_search_enabled'] else 'Disabled'
+            print(color_text(f"Web Search: {status}.", GREEN))
+            time.sleep(1)
+        elif toggle_choice == '3':
+            config['app_launcher_active'] = not config['app_launcher_active']
+            save_config(config)
+            status = 'Enabled' if config['app_launcher_active'] else 'Disabled'
+            print(color_text(f"App Launcher: {status}.", GREEN))
+            time.sleep(1)
+        elif toggle_choice == '4':
+            config['autostart_enabled'] = not config['autostart_enabled']
+            save_config(config)
+            status = 'Enabled' if config['autostart_enabled'] else 'Disabled'
+            print(color_text(f"Autostart: {status}.", GREEN))
+            time.sleep(1)
+        elif toggle_choice == '5':
+            print(color_text("Choose logo mode:", BLUE))
+            print(color_text("  1) Novium  2) OS (fastfetch)  3) None", CYAN))
+            logo_choice = input(color_text("Select > ", GREEN)).strip()
+            if logo_choice == '1':
+                config['logo_mode'] = 'novium'
+            elif logo_choice == '2':
+                config['logo_mode'] = 'os'
+            elif logo_choice == '3':
+                config['logo_mode'] = 'none'
+            save_config(config)
+            print(color_text(f"Logo Mode set to {config['logo_mode']}.", GREEN))
+            time.sleep(1)
+        elif toggle_choice == '0':
             break
         else:
             print(color_text('Invalid option', RED))
