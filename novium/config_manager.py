@@ -1,6 +1,7 @@
 # config_manager.py
 import json
 import os
+import platform
 import sys
 import shutil
 import subprocess
@@ -27,6 +28,35 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REQUIREMENTS_FILE = SCRIPT_DIR / "requirements.txt"
 GITHUB_REPO = "novium"
 GITHUB_BRANCH = "main"
+VERSION_FILE = SCRIPT_DIR / ".version"
+
+
+def get_version():
+    """Returns the current version string."""
+    if VERSION_FILE.exists():
+        content = VERSION_FILE.read_text(encoding='utf-8-sig').strip()
+        return content
+    return "0.0.0"
+
+
+def bump_version(patch=True):
+    """Increments the version number. patch=True bumps patch (x.y.Z), False bumps minor (x.Y.0)."""
+    current = get_version()
+    parts = current.split('.')
+    if len(parts) != 3:
+        return False
+    try:
+        major, minor, patch_ver = [int(p) for p in parts]
+        if patch:
+            patch_ver += 1
+        else:
+            minor += 1
+            patch_ver = 0
+        new_version = f"{major}.{minor}.{patch_ver}"
+        VERSION_FILE.write_text(new_version, encoding='utf-8-sig')
+        return new_version
+    except ValueError:
+        return False
 
 
 def check_fastfetch_installed():
@@ -84,7 +114,6 @@ def install_fastfetch():
         print(color_text("  or download from: https://github.com/fastfetch-cli/fastfetch/releases", GREEN))
         return False
     elif os.name == 'posix':
-        import platform
         if platform.system() == 'Darwin':
             try:
                 subprocess.run(['brew', 'install', 'fastfetch'], check=True, capture_output=True)
@@ -161,14 +190,54 @@ def pip_install_requirements(requirements_file=None, user=False):
         command.append('--user')
     try:
         import subprocess
-        subprocess.check_call(command)
-        return True
-    except Exception:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=120)
+        if result.returncode == 0:
+            return True
+        # Print error details on failure
+        if result.stderr:
+            print(color_text(f"pip error: {result.stderr.strip()}", RED))
+        if result.stdout:
+            for line in result.stdout.strip().splitlines():
+                print(f"  {line}")
+        return False
+    except FileNotFoundError:
+        print(color_text("pip is not available. Install it first:", RED))
+        print(color_text("  Ubuntu/Debian: sudo apt install python3-pip", GREEN))
+        print(color_text("  Fedora: sudo dnf install python3-pip", GREEN))
+        print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
+        return False
+    except subprocess.TimeoutExpired:
+        print(color_text("pip install timed out.", RED))
+        return False
+    except Exception as e:
+        print(color_text(f"pip install failed: {e}", RED))
         return False
 
 
 def ensure_dependencies():
     """Checks all dependencies and auto-installs any that are missing."""
+    # Check pip availability first
+    try:
+        import subprocess
+        pip_check = subprocess.run(
+            [sys.executable, '-m', 'pip', '--version'],
+            capture_output=True, text=True, timeout=10
+        )
+        if pip_check.returncode != 0:
+            print(color_text("pip is not available. Please install it manually:", RED))
+            print(color_text("  Ubuntu/Debian: sudo apt install python3-pip python3-venv", GREEN))
+            print(color_text("  Fedora: sudo dnf install python3-pip python3-virtualenv", GREEN))
+            print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
+            print()
+    except FileNotFoundError:
+        print(color_text("pip command not found. Please install it manually:", RED))
+        print(color_text("  Ubuntu/Debian: sudo apt install python3-pip python3-venv", GREEN))
+        print(color_text("  Fedora: sudo dnf install python3-pip python3-virtualenv", GREEN))
+        print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
+        print()
+    except Exception:
+        pass
+
     # Check Python packages from requirements.txt
     if REQUIREMENTS_FILE.exists():
         packages = []
@@ -202,7 +271,8 @@ def ensure_dependencies():
                 print(f"Dependencies found: {', '.join(packages)}")
 
             if not pip_install_requirements():
-                print(color_text("Automatic dependency installation failed. Run `python install.py` manually.", RED))
+                print(color_text("Automatic dependency installation failed. Try manually:", RED))
+                print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
                 return False
 
             # Verify all installed
@@ -233,7 +303,16 @@ def ensure_dependencies():
         if install_fastfetch():
             print(color_text("fastfetch installed successfully.", GREEN))
         else:
-            print(color_text("Failed to install fastfetch. Run `winget install fastfetch` manually.", RED))
+            if os.name == 'nt':
+                print(color_text("Failed to install fastfetch. Run `winget install fastfetch` manually.", RED))
+            elif platform.system() == 'Darwin':
+                print(color_text("Failed to install fastfetch. Run `brew install fastfetch` manually.", RED))
+            else:
+                print(color_text("Failed to install fastfetch. Try one of:", RED))
+                print(color_text("  Ubuntu/Debian: sudo apt install fastfetch", GREEN))
+                print(color_text("  Fedora: sudo dnf install fastfetch", GREEN))
+                print(color_text("  Arch: sudo pacman -S fastfetch", GREEN))
+                print(color_text("  Or download from: https://github.com/fastfetch-cli/fastfetch/releases", GREEN))
     else:
         print(f"fastfetch: {color_text('OK', GREEN)}")
 

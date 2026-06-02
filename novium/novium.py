@@ -17,7 +17,8 @@ from config_manager import (
     load_config, save_config, ensure_dependencies, MARKER_FILE,
     create_desktop_launcher, enable_autostart, remove_autostart,
     hard_reset, remove_desktop_launcher, check_fastfetch_installed,
-    install_fastfetch, check_for_updates, apply_update, run_os_setup
+    install_fastfetch, check_for_updates, apply_update, run_os_setup,
+    get_version, bump_version
 )
 from system_monitor import (
     get_system_stats_snapshot, get_temperature, get_fan_rpm,
@@ -59,7 +60,7 @@ N_LOGO = r"""
 '----------------'
 """
 
-GENERAL_COMMANDS = ['help', 'stats', 'fan', 'settings', 'setup', 'sysinfo', 'nhome', 'clear', 'exit', 'winactivate', 'update', 'os-setup']
+GENERAL_COMMANDS = ['help', 'stats', 'fan', 'settings', 'setup', 'sysinfo', 'nhome', 'clear', 'exit', 'winactivate', 'update', 'os-setup', 'version', 'bump']
 
 OS_COMMAND_HINTS = {
     'nt': ['dir', 'cls', 'ipconfig', 'tasklist', 'systeminfo'],
@@ -76,6 +77,8 @@ def splash_screen():
     display_logo(FULL_LOGO, delay=0.002)
     print()
     print(color_text('Welcome to Novium', CYAN))
+    print(color_text(f'Version {get_version()}', YELLOW))
+    print()
     for seconds in range(3, 0, -1):
         countdown = color_text(f'Starting in {seconds}...', YELLOW)
         print(countdown, end='\r', flush=True)
@@ -136,6 +139,10 @@ def show_shell_help():
         color_text('  ff         - run fastfetch (auto-installs if missing)', BLUE),
         color_text('  logo       - switch logo: Novium / OS / None', BLUE),
         color_text('  color <C>  - change logo color (BLUE, CYAN, MAGENTA, GREEN, YELLOW, RED)', BLUE),
+        '',
+        color_text('Version:', BOLD),
+        color_text('  version  - show current Novium version', BLUE),
+        color_text('  bump     - increment patch version', BLUE),
         '',
         color_text('App Commands:', BOLD),
         color_text('  web <query>   - open Google search in your browser', BLUE),
@@ -362,6 +369,16 @@ def start_screen():
             last_output = []
         elif command.lower() == 'clear':
             clear()
+            last_output = []
+        elif command.lower() == 'version':
+            print(color_text(f"Novium version: {get_version()}", GREEN))
+            last_output = []
+        elif command.lower() == 'bump':
+            new_ver = bump_version()
+            if new_ver:
+                print(color_text(f"Version bumped to {new_ver}", GREEN))
+            else:
+                print(color_text("Failed to bump version.", RED))
             last_output = []
         elif command.lower() == 'ff':
             # fastfetch command
