@@ -12,6 +12,7 @@ import zipfile
 from pathlib import Path
 
 from utils import color_text, GREEN, YELLOW, RED
+from system_monitor import detect_linux_distro
 
 MARKER_FILE = Path.home() / ".novium_setup_done"
 CONFIG_FILE = Path.cwd() / "config.json"
@@ -292,17 +293,72 @@ def pip_install_requirements(requirements_file=None, user=False):
         if result.returncode == 0:
             return True
         # Print error details on failure
-        if result.stderr:
-            print(color_text(f"pip error: {result.stderr.strip()}", RED))
-        if result.stdout:
-            for line in result.stdout.strip().splitlines():
-                print(f"  {line}")
-        return False
+        stderr_msg = result.stderr.strip() if result.stderr else ""
+        stdout_msg = result.stdout.strip() if result.stdout else ""
+        
+        # Check for common pip issues
+        if 'No module named pip' in stderr_msg or 'No module named pip' in stdout_msg:
+            print(color_text("pip module is not properly installed. Install it first:", RED))
+            distro = detect_linux_distro()
+            if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
+                print(color_text("  sudo apt update && sudo apt install -y python3-pip", GREEN))
+            elif distro in ('fedora', 'rhel', 'centos', 'rocky', 'almalinux', 'amzn'):
+                print(color_text("  sudo dnf install -y python3-pip", GREEN))
+            elif distro == 'arch':
+                print(color_text("  sudo pacman -S python-pip", GREEN))
+            elif distro == 'alpine':
+                print(color_text("  sudo apk add py3-pip", GREEN))
+            elif distro == 'opensuse-tumbleweed' or distro == 'opensuse-leap':
+                print(color_text("  sudo zypper install -y python3-pip", GREEN))
+            else:
+                print(color_text("  Ubuntu/Debian: sudo apt install python3-pip", GREEN))
+                print(color_text("  Fedora: sudo dnf install python3-pip", GREEN))
+                print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
+            return False
+        elif 'pip' in stderr_msg.lower() and 'not found' in stderr_msg.lower():
+            print(color_text("pip is not available. Install it first:", RED))
+            distro = detect_linux_distro()
+            if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
+                print(color_text("  sudo apt update && sudo apt install -y python3-pip", GREEN))
+            elif distro in ('fedora', 'rhel', 'centos', 'rocky', 'almalinux', 'amzn'):
+                print(color_text("  sudo dnf install -y python3-pip", GREEN))
+            elif distro == 'arch':
+                print(color_text("  sudo pacman -S python-pip", GREEN))
+            elif distro == 'alpine':
+                print(color_text("  sudo apk add py3-pip", GREEN))
+            elif distro == 'opensuse-tumbleweed' or distro == 'opensuse-leap':
+                print(color_text("  sudo zypper install -y python3-pip", GREEN))
+            else:
+                print(color_text("  Ubuntu/Debian: sudo apt install python3-pip", GREEN))
+                print(color_text("  Fedora: sudo dnf install python3-pip", GREEN))
+                print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
+            return False
+        else:
+            print(color_text("pip error:", RED))
+            if stderr_msg:
+                for line in stderr_msg.splitlines():
+                    print(f"  {line}")
+            if stdout_msg:
+                for line in stdout_msg.splitlines():
+                    print(f"  {line}")
+            return False
     except FileNotFoundError:
-        print(color_text("pip is not available. Install it first:", RED))
-        print(color_text("  Ubuntu/Debian: sudo apt install python3-pip", GREEN))
-        print(color_text("  Fedora: sudo dnf install python3-pip", GREEN))
-        print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
+        print(color_text("pip command not found. Install it first:", RED))
+        distro = detect_linux_distro()
+        if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
+            print(color_text("  sudo apt update && sudo apt install -y python3-pip", GREEN))
+        elif distro in ('fedora', 'rhel', 'centos', 'rocky', 'almalinux', 'amzn'):
+            print(color_text("  sudo dnf install -y python3-pip", GREEN))
+        elif distro == 'arch':
+            print(color_text("  sudo pacman -S python-pip", GREEN))
+        elif distro == 'alpine':
+            print(color_text("  sudo apk add py3-pip", GREEN))
+        elif distro == 'opensuse-tumbleweed' or distro == 'opensuse-leap':
+            print(color_text("  sudo zypper install -y python3-pip", GREEN))
+        else:
+            print(color_text("  Ubuntu/Debian: sudo apt install python3-pip", GREEN))
+            print(color_text("  Fedora: sudo dnf install python3-pip", GREEN))
+            print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
         return False
     except subprocess.TimeoutExpired:
         print(color_text("pip install timed out.", RED))
@@ -315,32 +371,28 @@ def pip_install_requirements(requirements_file=None, user=False):
 def ensure_dependencies():
     """Checks all dependencies and auto-installs any that are missing."""
     # Check pip availability first
+    pip_available = False
     try:
         import subprocess
         pip_check = subprocess.run(
             [sys.executable, '-m', 'pip', '--version'],
             capture_output=True, text=True, timeout=10
         )
-        if pip_check.returncode != 0:
-            print(color_text("pip is not available. Please install it manually:", RED))
-            distro = detect_linux_distro()
-            if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
-                print(color_text("  sudo apt update && sudo apt install -y python3 python3-pip python3-venv", GREEN))
-            elif distro in ('fedora', 'rhel', 'centos', 'rocky', 'almalinux', 'amzn'):
-                print(color_text("  sudo dnf install -y python3 python3-pip python3-virtualenv", GREEN))
-            elif distro == 'arch':
-                print(color_text("  sudo pacman -S python python-pip", GREEN))
-            elif distro == 'alpine':
-                print(color_text("  sudo apk add python3 py3-pip", GREEN))
-            elif distro == 'opensuse-tumbleweed' or distro == 'opensuse-leap':
-                print(color_text("  sudo zypper install -y python3 python3-pip", GREEN))
-            else:
-                print(color_text("  Ubuntu/Debian: sudo apt install python3-pip python3-venv", GREEN))
-                print(color_text("  Fedora: sudo dnf install python3-pip python3-virtualenv", GREEN))
-                print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
-            print()
+        if pip_check.returncode == 0:
+            # Also verify pip actually works by testing a simple command
+            test_check = subprocess.run(
+                [sys.executable, '-m', 'pip', 'list'],
+                capture_output=True, text=True, timeout=10
+            )
+            if test_check.returncode == 0:
+                pip_available = True
     except FileNotFoundError:
-        print(color_text("pip command not found. Please install it manually:", RED))
+        pass
+    except Exception:
+        pass
+
+    if not pip_available:
+        print(color_text("pip is not available. Please install it manually:", RED))
         distro = detect_linux_distro()
         if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
             print(color_text("  sudo apt update && sudo apt install -y python3 python3-pip python3-venv", GREEN))
@@ -357,8 +409,6 @@ def ensure_dependencies():
             print(color_text("  Fedora: sudo dnf install python3-pip python3-virtualenv", GREEN))
             print(color_text("  Arch: sudo pacman -S python-pip", GREEN))
         print()
-    except Exception:
-        pass
 
     # Check Python packages from requirements.txt
     if REQUIREMENTS_FILE.exists():
@@ -391,6 +441,39 @@ def ensure_dependencies():
                 print(color_text(f"Missing dependencies: {', '.join(missing)}. Installing...", YELLOW))
             else:
                 print(f"Dependencies found: {', '.join(packages)}")
+
+            if not pip_available:
+                print(color_text("Cannot install dependencies: pip is not available.", RED))
+                distro = detect_linux_distro()
+                if distro in ('ubuntu', 'debian', 'linuxmint', 'pop', 'kali', 'raspbian'):
+                    print(color_text("Install pip first:", GREEN))
+                    print(color_text("  sudo apt update && sudo apt install -y python3-pip", GREEN))
+                    print(color_text("Then run:", GREEN))
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                elif distro in ('fedora', 'rhel', 'centos', 'rocky', 'almalinux', 'amzn'):
+                    print(color_text("Install pip first:", GREEN))
+                    print(color_text("  sudo dnf install -y python3-pip", GREEN))
+                    print(color_text("Then run:", GREEN))
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                elif distro == 'arch':
+                    print(color_text("Install pip first:", GREEN))
+                    print(color_text("  sudo pacman -S python-pip", GREEN))
+                    print(color_text("Then run:", GREEN))
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                elif distro == 'alpine':
+                    print(color_text("Install pip first:", GREEN))
+                    print(color_text("  sudo apk add py3-pip", GREEN))
+                    print(color_text("Then run:", GREEN))
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                elif distro == 'opensuse-tumbleweed' or distro == 'opensuse-leap':
+                    print(color_text("Install pip first:", GREEN))
+                    print(color_text("  sudo zypper install -y python3-pip", GREEN))
+                    print(color_text("Then run:", GREEN))
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                else:
+                    print(color_text("Install pip first, then run:", GREEN))
+                    print(color_text(f"  python3 -m pip install -r {REQUIREMENTS_FILE}", GREEN))
+                return False
 
             if not pip_install_requirements():
                 print(color_text("Automatic dependency installation failed. Try manually:", RED))
