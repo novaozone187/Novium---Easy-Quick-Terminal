@@ -296,6 +296,12 @@ def pip_install_requirements(requirements_file=None, user=False):
         stderr_msg = result.stderr.strip() if result.stderr else ""
         stdout_msg = result.stdout.strip() if result.stdout else ""
         
+        # Check for "externally-managed-environment" error (Debian/Ubuntu/Arch)
+        if 'externally-managed-environment' in stderr_msg or 'externally-managed-environment' in stdout_msg:
+            print(color_text("Detected externally-managed Python environment.", YELLOW))
+            print(color_text("Creating virtual environment to install dependencies...", CYAN))
+            return _setup_venv_and_install(requirements_file)
+        
         # Check for common pip issues
         if 'No module named pip' in stderr_msg or 'No module named pip' in stdout_msg:
             print(color_text("pip module is not properly installed. Install it first:", RED))
@@ -365,6 +371,84 @@ def pip_install_requirements(requirements_file=None, user=False):
         return False
     except Exception as e:
         print(color_text(f"pip install failed: {e}", RED))
+        return False
+
+
+def _setup_venv_and_install(requirements_file):
+    """Creates a virtual environment and installs dependencies in it."""
+    venv_dir = SCRIPT_DIR / ".venv"
+    
+    # Check if venv already exists
+    venv_python = venv_dir / "bin" / "python"
+    if os.name == 'nt':
+        venv_python = venv_dir / "Scripts" / "python.exe"
+    
+    if not venv_dir.exists():
+        try:
+            import subprocess
+            print(color_text("Creating virtual environment...", YELLOW))
+            result = subprocess.run(
+                [sys.executable, '-m', 'venv', str(venv_dir)],
+                capture_output=True, text=True, timeout=60
+            )
+            if result.returncode != 0:
+                print(color_text("Failed to create virtual environment.", RED))
+                if result.stderr:
+                    for line in result.stderr.strip().splitlines():
+                        print(f"  {line}")
+                return False
+            print(color_text("Virtual environment created.", GREEN))
+        except subprocess.TimeoutExpired:
+            print(color_text("Virtual environment creation timed out.", RED))
+            return False
+        except Exception as e:
+            print(color_text(f"Failed to create virtual environment: {e}", RED))
+            return False
+    
+    # Use venv's pip to install
+    if os.name == 'nt':
+        pip_path = venv_dir / "Scripts" / "pip.exe"
+    else:
+        pip_path = venv_dir / "bin" / "pip3"
+    
+    if not pip_path.exists():
+        # Try to bootstrap pip in venv
+        try:
+            import subprocess
+            print(color_text("Bootstrapping pip in virtual environment...", YELLOW))
+            result = subprocess.run(
+                [str(venv_python), '-m', 'ensurepip', '--default-pip'],
+                capture_output=True, text=True, timeout=60
+            )
+            if result.returncode != 0:
+                print(color_text("Failed to bootstrap pip.", RED))
+                return False
+        except Exception as e:
+            print(color_text(f"Failed to bootstrap pip: {e}", RED))
+            return False
+    
+    print(color_text(f"Installing dependencies in virtual environment at {venv_dir}...", CYAN))
+    try:
+        import subprocess
+        result = subprocess.run(
+            [str(pip_path), 'install', '-r', str(requirements_file)],
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode == 0:
+            print(color_text("Dependencies installed successfully in virtual environment.", GREEN))
+            print(color_text(f"Run Novium using: {venv_python} novium.py", CYAN))
+            return True
+        else:
+            print(color_text("Failed to install dependencies in virtual environment.", RED))
+            if result.stderr:
+                for line in result.stderr.strip().splitlines():
+                    print(f"  {line}")
+            return False
+    except subprocess.TimeoutExpired:
+        print(color_text("Installation timed out.", RED))
+        return False
+    except Exception as e:
+        print(color_text(f"Installation failed: {e}", RED))
         return False
 
 
