@@ -25,20 +25,18 @@ Novium is a terminal-based system dashboard, app launcher, and performance toolk
 
 ### Windows (PowerShell)
 
-> If Python is not installed: download from https://www.python.org/downloads/ (check **"Add Python to PATH"**) and restart your terminal first.
+If Python is not installed: download from https://www.python.org/downloads/ (check **"Add Python to PATH"**) and restart your terminal first.
 
 ```powershell
-python --version
-git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git
-cd Novium---Easy-Quick-Terminal\novium
-python -m pip install -r requirements.txt
-python novium.py
+git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git; cd Novium---Easy-Quick-Terminal\novium; python -m pip install -r requirements.txt; python novium.py
 ```
 
 ### Ubuntu / Debian
 
+Uses a virtual environment to avoid the system Python restriction (PEP 668).
+
 ```bash
-sudo apt update && sudo apt install python3 python3-pip git -y && git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git && cd Novium---Easy-Quick-Terminal/novium && python3 -m pip install -r requirements.txt && python3 novium.py
+sudo apt update && sudo apt install python3 python3-pip python3-venv git -y && git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git && cd Novium---Easy-Quick-Terminal/novium && python3 -m venv .novium_venv && .novium_venv/bin/pip install -r requirements.txt && .novium_venv/bin/python novium.py
 ```
 
 ### Fedora
