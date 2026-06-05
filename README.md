@@ -21,64 +21,68 @@ Novium is a terminal-based system dashboard, app launcher, and performance toolk
 
 ## Quick Install
 
-### Prerequisites
+**Copy and paste the ENTIRE block for your OS below.** Each block installs Python (if missing), clones the repo, installs dependencies, and runs Novium.
 
-| OS | Python | Check |
-|----|--------|-------|
-| Windows | 3.10+ | `python --version` |
-| Linux | 3.10+ | `python3 --version` |
-| macOS | 3.10+ | `python3 --version` |
+### Windows (PowerShell)
 
-If Python is not installed, use your OS package manager:
+> If Python is not installed: download from https://www.python.org/downloads/ (check **"Add Python to PATH"**) and restart your terminal first.
 
-```bash
-# Ubuntu / Debian
-sudo apt update && sudo apt install python3 python3-pip python3-venv -y
-
-# Fedora
-sudo dnf install python3 python3-pip -y
-
-# Arch Linux
-sudo pacman -S python python-pip --noconfirm
-
-# openSUSE
-sudo zypper install python3 python3-pip
-
-# Alpine
-sudo apk add python3 py3-pip
-
-# macOS (Homebrew)
-brew install python3
-
-# Windows
-# Download from https://www.python.org/downloads/
-# IMPORTANT: Check "Add Python to PATH" during installation
-# After install, open a NEW terminal and verify:
-#   python --version
-```
-
-### Clone & Run
-
-```bash
+```powershell
+python --version
 git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git
-cd Novium---Easy-Quick-Terminal/novium
-```
-
-**Windows:**
-```bash
+cd Novium---Easy-Quick-Terminal\novium
+python -m pip install -r requirements.txt
 python novium.py
 ```
 
-**Linux / macOS:**
+### Ubuntu / Debian
+
 ```bash
-python3 novium.py
+sudo apt update && sudo apt install python3 python3-pip git -y && git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git && cd Novium---Easy-Quick-Terminal/novium && python3 -m pip install -r requirements.txt && python3 novium.py
 ```
 
-That's it. Novium auto-installs `psutil` and all dependencies on first launch.
+### Fedora
 
-### Manual Dependency Install (Optional)
+```bash
+sudo dnf install python3 python3-pip git -y && git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git && cd Novium---Easy-Quick-Terminal/novium && python3 -m pip install -r requirements.txt && python3 novium.py
+```
 
-If auto-install fails, run:
+### Arch Linux
+
+```bash
+sudo pacman -S python python-pip git --noconfirm && git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git && cd Novium---Easy-Quick-Terminal/novium && python -m pip install -r requirements.txt && python novium.py
+```
+
+### openSUSE
+
+```bash
+sudo zypper install python3 python3-pip git -y && git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git && cd Novium---Easy-Quick-Terminal/novium && python3 -m pip install -r requirements.txt && python3 novium.py
+```
+
+### Alpine
+
+```bash
+sudo apk add python3 py3-pip git && git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git && cd Novium---Easy-Quick-Terminal/novium && python3 -m pip install -r requirements.txt && python3 novium.py
+```
+
+### macOS (Homebrew)
+
+```bash
+brew install python3 git && git clone https://github.com/novaozone187/Novium---Easy-Quick-Terminal.git && cd Novium---Easy-Quick-Terminal/novium && python3 -m pip install -r requirements.txt && python3 novium.py
+```
+
+### Verify Python (any OS)
+
+Use these to check your version before installing:
+
+| OS | Command |
+|----|---------|
+| Windows | `python --version` |
+| Linux/macOS | `python3 --version` |
+
+### Fallback (deps only)
+
+If auto-install on first launch fails, run this from the `novium/` directory:
 
 ```bash
 # Windows
@@ -88,7 +92,7 @@ python -m pip install -r requirements.txt
 python3 -m pip install -r requirements.txt
 ```
 
-Then `python(3) novium.py` as above.
+Then run `python(3) novium.py`.
 
 ## First-Run Setup
 
