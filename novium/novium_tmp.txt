@@ -1,6 +1,0 @@
-Firefox
-Dateien öffnen
-Terminal
-Task Manager
-Restart Docker
-Shutdown
