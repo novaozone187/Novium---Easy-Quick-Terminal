@@ -5,5 +5,11 @@
   "hardware_monitoring": true,
   "web_search_enabled": true,
   "app_launcher_active": false,
-  "autostart_enabled": false
+  "autostart_enabled": false,
+  "network": {
+    "enabled": false,
+    "server_url": "ws://192.168.0.252:8765",
+    "client_id": null,
+    "verified": false
+  }
 }

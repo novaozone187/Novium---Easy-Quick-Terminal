@@ -49,7 +49,7 @@ DEFAULT_CONFIG = {
     "autostart_enabled": False,
     "network": {
         "enabled": False,
-        "server_url": "ws://localhost:8765",
+        "server_url": "ws://192.168.0.252:8765",
         "client_id": None,
         "verified": False
     }
