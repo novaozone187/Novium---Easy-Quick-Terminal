@@ -6,19 +6,21 @@ import sys
 import time
 import subprocess
 import platform
+import traceback
 from pathlib import Path
 
 # Local imports
 from utils import (
     color_text, BOLD, BLUE, CYAN, GREEN, YELLOW, RED, MAGENTA, RESET,
-    clear, set_windows_ansi
+    clear, set_windows_ansi, apply_theme, THEME,
+    draw_box, draw_header, draw_table, render_status_bar, read_key
 )
 from config_manager import (
     load_config, save_config, ensure_dependencies, MARKER_FILE,
     create_desktop_launcher, enable_autostart, remove_autostart,
     hard_reset, remove_desktop_launcher, check_fastfetch_installed,
     install_fastfetch, check_for_updates, apply_update, run_os_setup,
-    get_version, bump_version
+    get_version
 )
 from system_monitor import (
     get_system_stats_snapshot, get_temperature, get_fan_rpm,
@@ -26,9 +28,11 @@ from system_monitor import (
     detect_linux_distro
 )
 from ui import (
-    display_logo, render_shell,
-    render_sensor_screen, render_settings_screen, render_setup_screen
+    display_logo, render_initial_home,
+    render_sensor_screen, render_settings_screen, render_setup_screen,
+    _network_connection_screen
 )
+from network import get_network, DISCORD_INVITE
 
 # --- Constants ---
 
@@ -60,7 +64,7 @@ N_LOGO = r"""
 '----------------'
 """
 
-GENERAL_COMMANDS = ['help', 'stats', 'fan', 'settings', 'setup', 'sysinfo', 'nhome', 'clear', 'exit', 'winactivate', 'update', 'os-setup', 'version', 'bump', 'font']
+GENERAL_COMMANDS = ['help', 'stats', 'fan', 'settings', 'setup', 'sysinfo', 'nhome', 'clear', 'exit', 'winactivate', 'update', 'os-setup', 'version', 'font', 'perfcheck', 'seccheck']
 
 OS_COMMAND_HINTS = {
     'nt': ['dir', 'cls', 'ipconfig', 'tasklist', 'systeminfo'],
@@ -71,7 +75,7 @@ OS_COMMAND_HINTS = {
 # --- Splash & Detection ---
 
 def splash_screen():
-    """Displays the animated splash screen."""
+    """Displays the splash screen (skippable with Enter)."""
     set_windows_ansi()
     clear()
     display_logo(FULL_LOGO, delay=0.002)
@@ -79,13 +83,7 @@ def splash_screen():
     print(color_text('Welcome to Novium', CYAN))
     print(color_text(f'Version {get_version()}', YELLOW))
     print()
-    for seconds in range(3, 0, -1):
-        countdown = color_text(f'Starting in {seconds}...', YELLOW)
-        print(countdown, end='\r', flush=True)
-        time.sleep(1)
-    cols = __import__('shutil').get_terminal_size().columns
-    print(' ' * cols, end='\r')
-    time.sleep(0.2)
+    input(color_text('Press Enter to continue...', YELLOW))
 
 
 def run_system_detection():
@@ -93,7 +91,16 @@ def run_system_detection():
     set_windows_ansi()
     detected = {}
     detected['Web Browser'] = check_browser_installed()
-    detected['psutil'] = True
+    try:
+        import psutil
+        detected['psutil'] = True
+    except ImportError:
+        detected['psutil'] = False
+    try:
+        import websocket
+        detected['websocket-client'] = True
+    except ImportError:
+        detected['websocket-client'] = False
     detected['python'] = sys.version.split()[0]
     detected['platform'] = platform.platform()
     detected['fastfetch'] = check_fastfetch_installed()
@@ -106,11 +113,6 @@ def run_system_detection():
         print(f"  {name}: {color_text(icon, color)}")
     print()
 
-    if not detected['psutil']:
-        print(color_text("psutil is required. Please run: pip install psutil", RED))
-        input("Press Enter to exit...")
-        sys.exit(1)
-
     input(color_text("Press Enter to continue...", BLUE))
     return detected
 
@@ -118,99 +120,108 @@ def run_system_detection():
 # --- Shell Commands ---
 
 def show_shell_help():
-    """Shows built-in command help."""
-    clear()
-    lines = [
-        color_text('Novium built-in commands:', BOLD + CYAN),
-        '',
-        color_text('Core Commands:', BOLD),
-        color_text('  help      - show this help text', BLUE),
-        color_text('  stats     - display current system stats (auto-updates)', BLUE),
-        color_text('  fan       - show fan and temperature sensor status', BLUE),
-        color_text('  sysinfo   - display detailed system information', BLUE),
-        color_text('  nhome     - return to the Novium home shell screen', BLUE),
-        color_text('  clear     - clear the screen', BLUE),
-        color_text('  exit      - quit Novium', BLUE),
-        '',
-        color_text('System Commands:', BOLD),
-        color_text('  winactivate - run Windows activation script', BLUE),
-        color_text('  update     - check and apply Novium updates', BLUE),
-        color_text('  os-setup   - run OS/system setup wizard', BLUE),
-        color_text('  ff         - run fastfetch (auto-installs if missing)', BLUE),
-        color_text('  logo       - switch logo: Novium / OS / None', BLUE),
-        color_text('  color <C>  - change logo color (BLUE, CYAN, MAGENTA, GREEN, YELLOW, RED)', BLUE),
-        '',
-        color_text('Version:', BOLD),
-        color_text('  version  - show current Novium version', BLUE),
-        color_text('  bump     - increment patch version', BLUE),
-        '',
-        color_text('Font Commands:', BOLD),
-        color_text('  font set <name>  - Set font (monocraft, default)', BLUE),
-        color_text('  font list        - List available fonts', BLUE),
-        color_text('  font current     - Show current font', BLUE),
-        '',
-        color_text('App Commands:', BOLD),
-        color_text('  web <query>   - open Google search in your browser', BLUE),
-        color_text('  app <name>    - launch or search for an application', BLUE),
-        color_text('  install <app> - install application (steam, discord, etc.)', BLUE),
-        '',
-        color_text('Setup Commands:', BOLD),
-        color_text('  settings - open Novium settings menu', BLUE),
-        color_text('  setup    - rerun first-run setup wizard', BLUE),
-        color_text('  nuke     - completely remove Novium from your system', YELLOW),
-        '',
-        color_text('Other:', BOLD),
-        color_text('  Any other input is executed as a system command', GREEN),
-        color_text('  (dir on Windows, ls on Linux/macOS, etc.)', GREEN),
+    """Prints built-in command help."""
+    draw_header("NOVIUM HELP", "═", BOLD + THEME["header"])
+    print()
+
+    sections = [
+        ("Commands", [
+            ("help", "show this help text"),
+            ("stats", "display live system stats (Q to stop)"),
+            ("fan", "show fan and temperature sensor status"),
+            ("sysinfo", "display detailed system information"),
+            ("nhome", "return to the Novium home screen"),
+            ("clear", "clear the screen"),
+            ("exit", "quit Novium"),
+        ]),
+        ("Utilities", [
+            ("scanLAN [-d]", "scan LAN for devices (passive ARP)"),
+            ("web <query>", "open Google search in your browser"),
+            ("app <name>", "launch or search for an application"),
+            ("install <app>", "install app (steam, discord, etc.)"),
+        ]),
+        ("Security", [
+            ("perfcheck", "check system performance and auto-fix"),
+            ("seccheck", "scan for security and suspicious activity"),
+        ]),
+        ("System", [
+            ("winactivate", "run Windows activation script"),
+            ("update", "check and apply Novium updates"),
+            ("os-setup", "run OS/system setup wizard"),
+            ("ff", "run fastfetch (auto-installs if missing)"),
+            ("logo", "switch logo: Novium / OS / None"),
+            ("color <C>", "change logo color"),
+        ]),
+        ("Version", [
+            ("version", "show current Novium version"),
+        ]),
+        ("Font", [
+            ("font set <name>", "set font (monocraft, default)"),
+            ("font list", "list available fonts"),
+            ("font current", "show current font"),
+        ]),
+        ("Novium Network", [
+            ("novium connect", "connect to Novium Network"),
+            ("novium status", "show connection status"),
+            ("novium disconnect", "disconnect from network"),
+            ("novium invite", "join the Novium Discord server"),
+        ]),
+        ("Setup", [
+            ("settings", "open Novium settings menu"),
+            ("setup", "rerun first-run setup wizard"),
+            ("nuke", "remove Novium from your system"),
+            ("nrestart", "restart Novium (applies file changes)"),
+        ]),
     ]
-    return lines
 
+    for section_name, commands in sections:
+        headers = [color_text(section_name, BOLD + THEME["secondary"])]
+        draw_table(headers, [[c] for c in [" "]], border_color=THEME["secondary"])
+        draw_table(
+            [color_text("Command", THEME["highlight"]), color_text("Description", THEME["highlight"])],
+            [[color_text(cmd, THEME["secondary"]), color_text(desc, BLUE)] for cmd, desc in commands],
+            border_color=THEME["secondary"]
+        )
+        print()
 
-def show_stats():
-    """Displays current system stats."""
-    clear()
-    stats = get_system_stats_snapshot()
-    lines = [color_text("=== SYSTEM STATS ===", BOLD + CYAN), '']
-    for key, value in stats.items():
-        lines.append(f"  {key:<15}: {color_text(value, GREEN)}")
-    lines.append('')
-    return lines
+    print(color_text("  Any other input is executed as a system command", GREEN))
+    print(color_text("  (dir on Windows, ls on Linux/macOS, etc.)", GREEN))
 
 
 def show_sysinfo():
     """Displays detailed system information."""
-    clear()
     stats = get_system_stats_snapshot()
-    lines = [color_text("=== SYSTEM INFORMATION ===", BOLD + CYAN), '']
-    lines.append(f"  OS:           {platform.system()} {platform.release()}")
-    lines.append(f"  Platform:     {platform.platform()}")
-    lines.append(f"  Python:       {sys.version.split()[0]}")
-    lines.append(f"  CPU cores:    {__import__('os').cpu_count()}")
-    lines.append(f"  Memory:       {stats.get('Memory', 'N/A')}")
-    lines.append(f"  Disk Free:    {stats.get('Disk Free', 'N/A')}")
-    lines.append(f"  Temperature:  {stats.get('Temperature', 'N/A')}")
-    lines.append(f"  Fan RPM:      {stats.get('Fan RPM', 'N/A')}")
-    lines.append('')
-    return lines
+    lines = [
+        f"  OS           : {platform.system()} {platform.release()}",
+        f"  Platform     : {platform.platform()}",
+        f"  Python       : {sys.version.split()[0]}",
+        f"  CPU cores    : {os.cpu_count()}",
+        f"  Memory       : {color_text(stats.get('Memory', 'N/A'), THEME['stat_value'])}",
+        f"  Disk Free    : {color_text(stats.get('Disk Free', 'N/A'), THEME['stat_value'])}",
+        f"  Temperature  : {color_text(stats.get('Temperature', 'N/A'), THEME['stat_value'])}",
+        f"  Fan RPM      : {color_text(stats.get('Fan RPM', 'N/A'), THEME['stat_value'])}",
+    ]
+    draw_box(lines, title="SYSTEM INFORMATION", border_color=THEME["border"])
 
 
 def execute_command(cmd):
-    """Executes a system command and returns output lines."""
+    """Executes a system command and prints output."""
     try:
         result = subprocess.run(
             cmd, shell=True, capture_output=True, text=True,
             timeout=30
         )
-        output = []
         if result.stdout:
-            output.extend(result.stdout.strip().splitlines())
+            print(result.stdout.strip())
         if result.stderr:
-            output.extend([color_text(line, YELLOW) for line in result.stderr.strip().splitlines()])
-        return output if output else [color_text("Command executed successfully.", GREEN)]
+            for line in result.stderr.strip().splitlines():
+                print(color_text(line, YELLOW))
+        if not result.stdout and not result.stderr:
+            print(color_text("Command executed successfully.", GREEN))
     except subprocess.TimeoutExpired:
-        return [color_text("Command timed out.", RED)]
+        print(color_text("Command timed out.", RED))
     except Exception as e:
-        return [color_text(f"Error: {e}", RED)]
+        print(color_text(f"Error: {e}", RED))
 
 
 def web_search(query):
@@ -219,31 +230,33 @@ def web_search(query):
         import webbrowser
         url = f"https://www.google.com/search?q={query}"
         webbrowser.open(url)
-        return [color_text(f"Opened browser for: {query}", GREEN)]
+        print(color_text(f"Opened browser for: {query}", GREEN))
     except Exception as e:
-        return [color_text(f"Web search failed: {e}", RED)]
+        print(color_text(f"Web search failed: {e}", RED))
 
 
 def launch_app(target_name):
     """Attempts to launch an application or file."""
     config = load_config()
     if not config.get('app_launcher_active', False):
-        return [color_text("App Launcher is disabled in settings. Enable it in settings > Manage Features.", YELLOW)]
+        print(color_text("App Launcher is disabled in settings. Enable it in settings > Manage Features.", YELLOW))
+        return
 
     if target_name.lower() in ('devmode', 'developer'):
-        return [color_text("Launching Developer Mode...", CYAN)]
+        print(color_text("Launching Developer Mode...", CYAN))
     elif target_name.lower() in ('gamemode', 'game'):
-        return [color_text("Entering Game Mode...", BLUE)]
-
-    if os.path.exists(target_name):
-        return [color_text(f"Executing: {target_name}", GREEN)] + execute_command(f'"{target_name}"')
-
-    if os.name == 'nt':
-        return [color_text(f"Windows: Searching for '{target_name}'...", CYAN)]
+        print(color_text("Entering Game Mode...", BLUE))
+    elif os.path.exists(target_name):
+        print(color_text(f"Executing: {target_name}", GREEN))
+        execute_command(f'"{target_name}"')
+    elif os.name == 'nt':
+        print(color_text(f"Windows: Searching for '{target_name}'...", CYAN))
     elif platform.system() == 'Darwin':
-        return [color_text("macOS: Attempting 'open' command.", BLUE)] + execute_command(f"open -a '{target_name}'")
+        print(color_text("macOS: Attempting 'open' command.", BLUE))
+        execute_command(f"open -a '{target_name}'")
     else:
-        return [color_text("Linux: Searching for '{target_name}'...", CYAN)] + execute_command(f"which {target_name} || echo 'Not found'")
+        print(color_text(f"Linux: Searching for '{target_name}'...", CYAN))
+        execute_command(f"which {target_name} || echo 'Not found'")
 
 
 def run_fastfetch():
@@ -287,6 +300,7 @@ def start_screen():
 
     # Load config
     config = load_config()
+    apply_theme(config)
 
     # Splash
     splash_screen()
@@ -294,27 +308,55 @@ def start_screen():
     # Detection
     run_system_detection()
 
-    # Main loop
-    last_output = []
-    last_stats_time = 0
-
-    while True:
-        # Update stats every second
-        import time as _time
-        current_time = _time.time()
-        if current_time - last_stats_time > 1:
-            stats = get_system_stats_snapshot()
-            last_stats_time = current_time
+    # Network auto-connect
+    net = get_network()
+    if config.get("network", {}).get("enabled", False):
+        url = config["network"].get("server_url", "ws://localhost:8765")
+        ok, msg = net.connect(url)
+        if ok:
+            print(color_text(f"  {msg}", GREEN))
         else:
-            stats = None
+            print(color_text(f"  {msg}", YELLOW))
 
-        # Render shell with stats
-        render_shell(stats, None, last_output)
+    net.add_listener(lambda event, data: None)
 
-        # Print prompt
+    render_initial_home()
+    print()
+
+    if not net.connected:
+        print(color_text("  Type 'network connect' to join Novium Network, or 'help' for commands.", YELLOW))
+        print()
+
+    # Main terminal loop
+    while True:
+        if net._pending_code and not net.verified:
+            saved_code = net._pending_code
+            net._pending_code = None
+            clear()
+            draw_box([
+                color_text(f"  Challenge code: {saved_code}", BOLD + THEME["highlight"]),
+                "",
+                color_text(f"  1. Open Discord -> verification channel", THEME["secondary"]),
+                color_text(f"  2. Click Confirm Code -> enter the code above", THEME["secondary"]),
+                color_text(f"  3. You'll get the Novium Verified role + private channel", THEME["secondary"]),
+                "",
+                color_text(f"  Code expires in 5 minutes.", THEME["warning"]),
+            ], title="VERIFICATION CODE", border_color=THEME["highlight"])
+            input(color_text("  Press Enter to continue...", CYAN))
+            print()
+            continue
+
+        stats = get_system_stats_snapshot()
+        render_status_bar(
+            version=get_version(),
+            connected=net.connected,
+            client_id=net.client_id,
+            verified=net.verified,
+            cpu=stats.get("CPU", ""),
+            mem=stats.get("Memory", "")
+        )
         print(color_text('novium> ', GREEN), end='', flush=True)
 
-        # Read command (reliable cross-platform)
         try:
             command = input().strip()
         except EOFError:
@@ -330,7 +372,6 @@ def start_screen():
 
         parts = command.lower().split()
 
-        # Built-in commands
         if command.lower() in ('exit', 'quit'):
             print(color_text("Goodbye!", GREEN))
             return
@@ -341,97 +382,160 @@ def start_screen():
                     ['powershell', '-Command', 'irm https://get.activated.win | iex'],
                     check=False
                 )
-                last_output = [color_text("WinActivate executed.", GREEN)]
+                print(color_text("WinActivate executed.", GREEN))
             except Exception as e:
-                last_output = [color_text(f"WinActivate failed: {e}", RED)]
+                print(color_text(f"WinActivate failed: {e}", RED))
         elif command.lower() == 'update':
-            apply_update()
-            last_output = []
+            apply_update(interactive=True)
         elif command.lower() == 'os-setup':
             run_os_setup()
-            last_output = []
+        elif command.lower() == 'perfcheck':
+            from system_monitor import run_performance_check as _perfcheck
+            print(color_text("  Running performance check...", CYAN))
+            _results = _perfcheck()
+            _fixable = []
+            for _r in _results:
+                _icon = color_text("PASS", GREEN) if _r["status"] == "OK" else (color_text("WARN", YELLOW) if _r["status"] == "WARNING" else color_text("FAIL", RED))
+                print(f"  {_icon}  {_r['check']:<18}: {_r['message']}")
+                if _r.get("fix_cmd"):
+                    _fixable.append(_r)
+            if _fixable:
+                print()
+                print(color_text(f"  {len(_fixable)} issue(s) can be auto-fixed.", YELLOW))
+                _confirm = input(color_text("  Apply fixes? (y/n): ", YELLOW)).strip().lower()
+                if _confirm == 'y':
+                    for _r in _fixable:
+                        print(color_text(f"  → {_r['fix']}...", CYAN))
+                        try:
+                            subprocess.run(_r["fix_cmd"], timeout=30)
+                            print(color_text(f"  ✓ Done", GREEN))
+                        except Exception as _e:
+                            print(color_text(f"  ✗ Failed: {_e}", RED))
+            del _perfcheck, _results, _fixable, _r, _icon, _confirm
+        elif command.lower() == 'seccheck':
+            from system_monitor import run_security_check as _seccheck
+            print(color_text("  Running security scan...", CYAN))
+            _sec_results = _seccheck()
+            for _r in _sec_results:
+                _icon = color_text("PASS", GREEN) if _r["status"] == "OK" else (color_text("WARN", YELLOW) if _r["status"] == "WARNING" else color_text("FAIL", RED))
+                print(f"  {_icon}  {_r['check']:<24}: {_r['message']}")
+            del _seccheck, _sec_results, _r, _icon
         elif command.lower() == 'help':
-            last_output = show_shell_help()
+            show_shell_help()
         elif command.lower() == 'stats':
-            last_output = show_stats()
+            while True:
+                clear()
+                stats = get_system_stats_snapshot()
+                lines = [f"  {k:<15}: {color_text(v, THEME['stat_value'])}" for k, v in stats.items()]
+                draw_box(lines, title="SYSTEM STATS (LIVE)", border_color=THEME["border"])
+                print(color_text("  Press Q to stop", YELLOW))
+                key = read_key(timeout=2)
+                if key and key.lower() == 'q':
+                    break
         elif command.lower() == 'fan':
             clear()
             from ui import render_sensor_screen
             render_sensor_screen()
-            last_output = []
         elif command.lower() == 'settings':
             clear()
             from ui import render_settings_screen
             render_settings_screen()
-            last_output = []
         elif command.lower() == 'setup':
             clear()
             render_setup_screen()
-            last_output = []
         elif command.lower() == 'sysinfo':
-            last_output = show_sysinfo()
+            show_sysinfo()
         elif command.lower() == 'nhome':
-            last_output = []
+            render_initial_home()
         elif command.lower() == 'clear':
             clear()
-            last_output = []
+        elif command.lower() == 'nrestart':
+            print(color_text("  Restarting Novium...", CYAN))
+            import subprocess as _sp, sys as _sys, os as _os, signal as _sig, time as _time
+            _sys.stdout.flush()
+            script = _os.path.abspath(_sys.argv[0])
+            if _os.name == 'nt':
+                _sp.Popen(
+                    [_sys.executable, script] + _sys.argv[1:],
+                    creationflags=_sp.CREATE_NEW_CONSOLE
+                )
+                _time.sleep(1)
+                try:
+                    _os.kill(_os.getppid(), _sig.SIGTERM)
+                except Exception:
+                    pass
+            else:
+                _os.execv(_sys.executable, [_sys.executable, script] + _sys.argv[1:])
+            _os._exit(0)
+        elif command.lower() == 'scanlan':
+            from network_scanner import scan as net_scan
+            deep = '--deep' in parts or '-d' in parts
+            print(color_text("  Scanning LAN...", CYAN))
+            devices, error = net_scan(deep=deep)
+            if error:
+                print(color_text(f"  Scan failed: {error}", RED))
+            elif not devices:
+                print(color_text("  No devices found on network.", YELLOW))
+            else:
+                print(color_text(f"  Found {len(devices)} device(s):\n", BOLD + GREEN))
+                has_ports = any(d.get("ports") for d in devices)
+                if has_ports:
+                    headers = ["IP Address", "Hostname", "MAC Address", "Type", "Ports"]
+                else:
+                    headers = ["IP Address", "Hostname", "MAC Address", "Type"]
+                rows = []
+                for d in devices:
+                    ip = d["ip"]
+                    hostname = d.get("hostname", "N/A")[:23]
+                    mac = d["mac"]
+                    dtype = d.get("type", "Unknown")
+                    c = GREEN if dtype not in ("Unknown", "N/A") else YELLOW
+                    ports = d.get("ports", [])
+                    ports_str = ",".join(str(p) for p in ports[:4]) if ports else ""
+                    if ports_str:
+                        ports_str += "+" if len(ports) > 4 else ""
+                    row = [str(ip), str(hostname), str(mac), color_text(dtype, c)]
+                    if has_ports:
+                        row.append(color_text(ports_str, CYAN))
+                    rows.append(row)
+                draw_table(headers, rows, border_color=THEME["border"])
         elif parts[0] == 'font' and len(parts) > 1:
-            # Font command handling
             if parts[1].lower() == 'set' and len(parts) > 2:
                 font_name = parts[2].lower()
                 from core.font_manager import set_font
                 success, message = set_font(font_name)
-                if success:
-                    last_output = [color_text(message, GREEN)]
-                else:
-                    last_output = [color_text(message, RED)]
+                print(color_text(message, GREEN if success else RED))
             elif parts[1].lower() == 'list':
                 from core.font_manager import list_fonts, get_font_name
                 current = get_font_name()
-                last_output = [color_text("Available fonts:", BOLD + CYAN), '']
+                print(color_text("Available fonts:", BOLD + CYAN))
                 for name, display_name, available in list_fonts():
                     status = "[OK]" if available else "[ ]"
                     current_marker = " (current)" if name == current else ""
-                    color = GREEN if available else YELLOW
-                    last_output.append(f"  {status} {name:<12} {display_name:<20}{current_marker}")
+                    c = GREEN if available else YELLOW
+                    print(f"  {status} {name:<12} {display_name:<20}{current_marker}")
             elif parts[1].lower() == 'current':
                 from core.font_manager import get_font_name, get_font_display_name
                 current = get_font_name()
-                last_output = [color_text(f"Current font: {get_font_display_name(current)}", GREEN)]
+                print(color_text(f"Current font: {get_font_display_name(current)}", GREEN))
             else:
                 from core.font_manager import get_font_name
                 current = get_font_name()
-                last_output = [
-                    color_text("Font management:", BOLD + CYAN),
-                    '',
-                    color_text("  font set <name>  - Set font (monocraft, default)", BLUE),
-                    color_text("  font list        - List available fonts", BLUE),
-                    color_text("  font current     - Show current font", BLUE),
-                    '',
-                    color_text(f"Current font: {current}", YELLOW)
-                ]
-            last_output = []
+                print(color_text("Font management:", BOLD + CYAN))
+                print(color_text("  font set <name>  - Set font (monocraft, default)", BLUE))
+                print(color_text("  font list        - List available fonts", BLUE))
+                print(color_text("  font current     - Show current font", BLUE))
+                print(color_text(f"Current font: {current}", YELLOW))
         elif command.lower() == 'version':
             print(color_text(f"Novium version: {get_version()}", GREEN))
-            last_output = []
-        elif command.lower() == 'bump':
-            new_ver = bump_version()
-            if new_ver:
-                print(color_text(f"Version bumped to {new_ver}", GREEN))
-            else:
-                print(color_text("Failed to bump version.", RED))
-            last_output = []
         elif command.lower() == 'ff':
-            # fastfetch command
             if check_fastfetch_installed():
                 run_fastfetch()
             else:
                 confirm = input(color_text("fastfetch not installed. Install it? (y/n): ", YELLOW)).strip().lower()
                 if confirm == 'y':
                     install_fastfetch()
-            last_output = []
         elif command.lower() == 'logo':
-            # Logo switcher
             logo_choice = input(color_text("Choose logo: [1] Novium [2] OS (fastfetch) [3] None: ", GREEN)).strip()
             if logo_choice == '1':
                 config['logo_mode'] = 'novium'
@@ -447,46 +551,39 @@ def start_screen():
                 print(color_text("Logo disabled.", GREEN))
             else:
                 print(color_text("Invalid choice.", RED))
-            last_output = []
         elif command.lower().startswith('web '):
-            query = " ".join(parts[1:])
-            last_output = web_search(query)
+            web_search(" ".join(parts[1:]))
         elif parts[0] == 'app' and len(parts) > 1:
-            last_output = launch_app(" ".join(parts[1:]))
+            launch_app(" ".join(parts[1:]))
         elif parts[0] == 'color' and len(parts) > 1:
             color_name = parts[1].upper()
             if color_name in ('BLUE', 'CYAN', 'MAGENTA', 'GREEN', 'YELLOW', 'RED'):
                 config['logo_color'] = color_name
                 save_config(config)
-                last_output = [color_text(f"Logo color set to {color_name}.", GREEN)]
+                print(color_text(f"Logo color set to {color_name}.", GREEN))
             else:
-                last_output = [color_text(f"Invalid color: {color_name}. Use: BLUE, CYAN, MAGENTA, GREEN, YELLOW, RED", RED)]
+                print(color_text(f"Invalid color: {color_name}. Use: BLUE, CYAN, MAGENTA, GREEN, YELLOW, RED", RED))
         elif parts[0] == 'install' and len(parts) > 1:
-            app_name = parts[1].lower()
-            print(color_text(f"Installing {app_name}...", CYAN))
-            
-            # Map app names to installers
-            installers = {
-                'steam': ('https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe', 'Steam'),
-                'discord': ('https://cdn.discordapp.com/updates/production/DiscordSetup.exe', 'Discord'),
-                'vscode': ('https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-user', 'VS Code'),
-                'chrome': ('https://dl.google.com/chrome/install/latest/chrome_installer.exe', 'Chrome'),
-                'firefox': ('https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US', 'Firefox'),
-                'node': ('https://nodejs.org/dist/latest/node.msi', 'Node.js'),
-                'git': ('https://github.com/git-for-windows/git/releases/download/v2.43.0.windows.2/Git-2.43.0.2-64-bit.exe', 'Git'),
-            }
-            
-            if app_name in installers:
-                url, name = installers[app_name]
-                print(color_text(f"Opening {name} installer...", GREEN))
-                import webbrowser
-                webbrowser.open(url)
+            if parts[1].lower() == 'fastfetch':
+                install_fastfetch()
             else:
-                print(color_text(f"Unknown app: {app_name}. Try: steam, discord, vscode, chrome, firefox, node, git", YELLOW))
-            last_output = []
-        elif parts[0] == 'install' and len(parts) > 1 and parts[1] == 'fastfetch':
-            install_fastfetch()
-            last_output = []
+                app_name = parts[1].lower()
+                installers = {
+                    'steam': ('https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe', 'Steam'),
+                    'discord': ('https://cdn.discordapp.com/updates/production/DiscordSetup.exe', 'Discord'),
+                    'vscode': ('https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-user', 'VS Code'),
+                    'chrome': ('https://dl.google.com/chrome/install/latest/chrome_installer.exe', 'Chrome'),
+                    'firefox': ('https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US', 'Firefox'),
+                    'node': ('https://nodejs.org/dist/latest/node.msi', 'Node.js'),
+                    'git': ('https://github.com/git-for-windows/git/releases/download/v2.43.0.windows.2/Git-2.43.0.2-64-bit.exe', 'Git'),
+                }
+                if app_name in installers:
+                    url, name = installers[app_name]
+                    print(color_text(f"Opening {name} installer...", GREEN))
+                    import webbrowser
+                    webbrowser.open(url)
+                else:
+                    print(color_text(f"Unknown app: {app_name}. Try: steam, discord, vscode, chrome, firefox, node, git", YELLOW))
         elif command.lower() == 'nuke':
             confirm = input(color_text("This will completely remove Novium. Are you sure? Type 'YES' to confirm: ", RED)).strip()
             if confirm == 'YES':
@@ -504,18 +601,66 @@ def start_screen():
                 print(color_text("You can delete this folder manually.", YELLOW))
             else:
                 print(color_text("Nuke cancelled.", YELLOW))
-            last_output = []
+        elif parts[0] in ('network', 'novium'):
+            from ui import _network_settings
+            net = get_network()
+            if len(parts) == 1 or parts[1] == 'gui':
+                _network_settings()
+            elif parts[1] == 'status':
+                print(color_text(net.status_text(), CYAN))
+            elif parts[1] == 'connect':
+                if net.connected:
+                    print(color_text("Already connected.", YELLOW))
+                else:
+                    url = parts[2] if len(parts) > 2 else config.get("network", {}).get("server_url", "ws://localhost:8765")
+                    _network_connection_screen(net, url)
+                    if net.connected:
+                        cfg = load_config()
+                        cfg.setdefault("network", {})["enabled"] = True
+                        cfg["network"]["server_url"] = url
+                        save_config(cfg)
+            elif parts[1] == 'disconnect':
+                if not net.connected:
+                    print(color_text("Not connected.", YELLOW))
+                else:
+                    print(color_text("  Why are you disconnecting?", CYAN))
+                    reason = input(color_text("  Reason: ", GREEN)).strip()
+                    if not reason:
+                        reason = "No reason provided"
+                    net.disconnect_with_reason(reason)
+                    cfg = load_config()
+                    cfg.setdefault("network", {})["enabled"] = False
+                    save_config(cfg)
+                    print(color_text(f"Disconnected. Reason logged: {reason}", YELLOW))
+            elif parts[1] == 'invite':
+                import webbrowser
+                webbrowser.open(DISCORD_INVITE)
+                print(color_text(f"Opening Discord invite: {DISCORD_INVITE}", GREEN))
+            else:
+                print(color_text("Usage: novium [connect <url>|disconnect|status|invite]", YELLOW))
         else:
-            # Execute as system command
-            last_output = execute_command(command)
+            execute_command(command)
+
+        print()
 
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="Novium - Easy Quick Terminal")
+    parser.add_argument("--server", "-s", help="Novium Network WebSocket URL (overrides config)")
+    args, _ = parser.parse_known_args()
+    if args.server:
+        cfg = load_config()
+        cfg.setdefault("network", {})["server_url"] = args.server
+        save_config(cfg)
     try:
         start_screen()
     except KeyboardInterrupt:
         print("\n" + color_text("Exiting Novium...", YELLOW))
     except Exception as e:
+        net = get_network()
+        tb = traceback.format_exc()
+        if net.connected:
+            net.send_error(str(e), tb)
         print(f"\n[ERROR] {e}")
-        import traceback
         traceback.print_exc()

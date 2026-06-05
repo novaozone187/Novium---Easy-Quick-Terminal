@@ -1,0 +1,65 @@
+[2026-06-05T13:04:41.435364] _listen_loop: ConnectionResetError — [WinError 10054] Eine vorhandene Verbindung wurde vom Remotehost geschlossen
+[2026-06-05T13:04:41.435729] _listen_loop: connection lost — starting reconnect loop
+[2026-06-05T13:04:41.435997] _reconnect_loop: waiting 2s before reconnect attempt
+[2026-06-05T13:04:43.459226] _reconnect_loop: reconnected successfully — Connected as 7x5ybj34s
+[2026-06-05T13:04:49.122355] _listen_loop: ConnectionResetError — [WinError 10054] Eine vorhandene Verbindung wurde vom Remotehost geschlossen
+[2026-06-05T13:04:49.122740] _listen_loop: connection lost — starting reconnect loop
+[2026-06-05T13:04:49.124703] _reconnect_loop: waiting 2s before reconnect attempt
+[2026-06-05T13:04:51.151350] _reconnect_loop: reconnected successfully — Connected as 7x5ybj34s
+[2026-06-05T13:07:57.891227] _listen_loop: WebSocketConnectionClosedException — Connection to remote host was lost.
+[2026-06-05T13:07:57.891593] _listen_loop: connection lost — starting reconnect loop
+[2026-06-05T13:07:57.891839] _reconnect_loop: waiting 2s before reconnect attempt
+[2026-06-05T13:08:01.945184] _reconnect_loop: reconnect failed — Connection failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+[2026-06-05T13:08:01.945569] _reconnect_loop: waiting 5s before reconnect attempt
+[2026-06-05T13:08:16.972761] _reconnect_loop: reconnect failed — Connection timed out — ws://192.168.0.252:8765 unreachable
+[2026-06-05T13:08:16.973082] _reconnect_loop: waiting 15s before reconnect attempt
+[2026-06-05T13:08:42.022799] _reconnect_loop: reconnect failed — Connection timed out — ws://192.168.0.252:8765 unreachable
+[2026-06-05T13:08:42.023079] _reconnect_loop: waiting 30s before reconnect attempt
+[2026-06-05T13:09:22.108458] _reconnect_loop: reconnect failed — Connection timed out — ws://192.168.0.252:8765 unreachable
+[2026-06-05T13:09:22.108748] _reconnect_loop: waiting 60s before reconnect attempt
+[2026-06-05T13:10:22.307984] _reconnect_loop: reconnected successfully — Connected as 7x5ybj34s
+[2026-06-05T13:10:59.385988] _listen_loop: ConnectionResetError — [WinError 10054] Eine vorhandene Verbindung wurde vom Remotehost geschlossen
+[2026-06-05T13:10:59.386351] _listen_loop: connection lost — starting reconnect loop
+[2026-06-05T13:10:59.386598] _reconnect_loop: waiting 2s before reconnect attempt
+[2026-06-05T13:11:01.418694] _reconnect_loop: reconnected successfully — Connected as 7x5ybj34s
+[2026-06-05T13:11:25.056318] _listen_loop: ConnectionResetError — [WinError 10054] Eine vorhandene Verbindung wurde vom Remotehost geschlossen
+[2026-06-05T13:11:25.056642] _listen_loop: connection lost — starting reconnect loop
+[2026-06-05T13:11:25.056845] _reconnect_loop: waiting 2s before reconnect attempt
+[2026-06-05T13:11:27.086679] _reconnect_loop: reconnected successfully — Connected as 7x5ybj34s
+[2026-06-05T13:14:23.650220] _listen_loop: WebSocketConnectionClosedException — Connection to remote host was lost.
+[2026-06-05T13:14:23.650568] _listen_loop: connection lost — starting reconnect loop
+[2026-06-05T13:14:23.650844] _reconnect_loop: waiting 2s before reconnect attempt
+[2026-06-05T13:14:27.692075] _reconnect_loop: reconnect failed — Connection failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+[2026-06-05T13:14:27.692441] _reconnect_loop: waiting 5s before reconnect attempt
+[2026-06-05T13:14:42.716210] _reconnect_loop: reconnect failed — Connection timed out — ws://192.168.0.252:8765 unreachable
+[2026-06-05T13:14:42.716540] _reconnect_loop: waiting 15s before reconnect attempt
+[2026-06-05T13:15:07.770714] _reconnect_loop: reconnect failed — Connection timed out — ws://192.168.0.252:8765 unreachable
+[2026-06-05T13:15:07.771095] _reconnect_loop: waiting 30s before reconnect attempt
+[2026-06-05T13:15:37.874702] _reconnect_loop: reconnected successfully — Connected as 7x5ybj34s
+[2026-06-05T13:20:24.409016] _listen_loop: WebSocketConnectionClosedException — Connection to remote host was lost.
+[2026-06-05T13:20:24.409420] _listen_loop: connection lost — starting reconnect loop
+[2026-06-05T13:20:24.409677] _reconnect_loop: waiting 2s before reconnect attempt
+[2026-06-05T13:20:28.464774] _reconnect_loop: reconnect failed — Connection failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+[2026-06-05T13:20:28.465113] _reconnect_loop: waiting 5s before reconnect attempt
+[2026-06-05T13:20:43.479091] _reconnect_loop: reconnect failed — Connection timed out — ws://192.168.0.252:8765 unreachable
+[2026-06-05T13:20:43.479373] _reconnect_loop: waiting 15s before reconnect attempt
+[2026-06-05T13:21:08.528889] _reconnect_loop: reconnect failed — Connection timed out — ws://192.168.0.252:8765 unreachable
+[2026-06-05T13:21:08.529195] _reconnect_loop: waiting 30s before reconnect attempt
+[2026-06-05T13:21:38.625962] _reconnect_loop: reconnected successfully — Connected as 7x5ybj34s
+[2026-06-05T13:41:45.939628] _listen_loop: WebSocketConnectionClosedException — Connection to remote host was lost.
+[2026-06-05T13:41:45.939948] _listen_loop: connection lost — starting reconnect loop
+[2026-06-05T13:41:45.940179] _reconnect_loop: waiting 2s before reconnect attempt
+[2026-06-05T13:41:49.988347] _reconnect_loop: reconnect failed — Connection failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+[2026-06-05T13:41:49.988641] _reconnect_loop: waiting 5s before reconnect attempt
+[2026-06-05T13:42:05.018928] _reconnect_loop: reconnect failed — Connection timed out — ws://192.168.0.252:8765 unreachable
+[2026-06-05T13:42:05.019256] _reconnect_loop: waiting 15s before reconnect attempt
+[2026-06-05T14:36:16.762136] _listen_loop: WebSocketConnectionClosedException — Connection to remote host was lost.
+[2026-06-05T14:36:16.762620] _listen_loop: connection lost — starting reconnect loop
+[2026-06-05T14:36:16.762978] _reconnect_loop: waiting 2s before reconnect attempt
+[2026-06-05T14:36:20.812182] _reconnect_loop: reconnect failed — Connection failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+[2026-06-05T14:36:20.812489] _reconnect_loop: waiting 5s before reconnect attempt
+[2026-06-05T14:36:35.843488] _reconnect_loop: reconnect failed — Connection timed out — ws://192.168.0.252:8765 unreachable
+[2026-06-05T14:36:35.843785] _reconnect_loop: waiting 15s before reconnect attempt
+[2026-06-05T14:37:00.902406] _reconnect_loop: reconnect failed — Connection timed out — ws://192.168.0.252:8765 unreachable
+[2026-06-05T14:37:00.902828] _reconnect_loop: waiting 30s before reconnect attempt
+[2026-06-05T14:37:31.003836] _reconnect_loop: reconnected successfully — Connected as 7x5ybj34s

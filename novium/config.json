@@ -1,9 +1,16 @@
 {
-  "font": "monocraft",
+  "font": "default",
   "logo_color": "BLUE",
-  "logo_mode": "novium",
+  "logo_mode": "os",
   "hardware_monitoring": true,
   "web_search_enabled": true,
   "app_launcher_active": false,
-  "autostart_enabled": false
+  "autostart_enabled": false,
+  "network": {
+    "enabled": true,
+    "server_url": "ws://192.168.0.252:8765",
+    "client_id": "NOVIUM-004",
+    "verified": true,
+    "temp_id": "7x5ybj34s"
+  }
 }
