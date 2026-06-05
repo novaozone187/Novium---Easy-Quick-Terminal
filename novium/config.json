@@ -1,0 +1,9 @@
+{
+  "font": "default",
+  "logo_color": "BLUE",
+  "logo_mode": "novium",
+  "hardware_monitoring": true,
+  "web_search_enabled": true,
+  "app_launcher_active": false,
+  "autostart_enabled": false
+}
