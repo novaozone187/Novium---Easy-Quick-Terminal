@@ -49,7 +49,7 @@ DEFAULT_CONFIG = {
     "autostart_enabled": False,
     "network": {
         "enabled": False,
-        "server_url": "ws://192.168.0.252:8765",
+        "server_url": "ws://novium-network.duckdns.org:8765",
         "client_id": None,
         "verified": False
     }
@@ -425,24 +425,20 @@ def apply_update(interactive=False):
         skip_files = {"config.json", ".version", "novium_network.log", "novium_tmp.txt"}
         files_copied = 0
         with zipfile.ZipFile(zip_data) as zf:
-            # Find the novium/ subdirectory inside the zipball
-            novium_prefix = None
-            for name in zf.namelist():
-                if name.endswith("/novium/") or name.endswith("/novium"):
-                    novium_prefix = name
+            names = zf.namelist()
+
+            # Find the single top-level directory (GitHub zipball format: repo-tag/)
+            prefix = None
+            for name in names:
+                if name.endswith("/"):
+                    prefix = name
                     break
-            if not novium_prefix:
-                print(color_text("  Invalid update package: no novium/ directory found.", RED))
-                return
 
-            # Normalize prefix (ensure trailing /)
-            if not novium_prefix.endswith("/"):
-                novium_prefix += "/"
+            if not prefix:
+                prefix = ""
 
-            for name in zf.namelist():
-                if not name.startswith(novium_prefix):
-                    continue
-                rel = os.path.relpath(name, novium_prefix)
+            for name in names:
+                rel = os.path.relpath(name, prefix) if prefix else name
                 if not rel or rel in skip_files or rel.startswith("__pycache__") or rel.startswith("."):
                     continue
                 target = SCRIPT_DIR / rel

@@ -371,7 +371,7 @@ def _network_settings():
     net = get_network()
     while True:
         clear()
-        current_url = config.get("network", {}).get("server_url", "ws://localhost:8765")
+        current_url = config.get("network", {}).get("server_url", "ws://novium-network.duckdns.org:8765")
         auto = config.get("network", {}).get("enabled", False)
 
         info_lines = [

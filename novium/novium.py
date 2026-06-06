@@ -121,62 +121,62 @@ def run_system_detection():
 
 def show_shell_help():
     """Prints built-in command help."""
-    draw_header("NOVIUM HELP", "═", BOLD + THEME["header"])
+    clear()
+    top_lines = [
+        color_text(f"  Novium v{get_version()}  —  type a command and press Enter", BOLD + CYAN),
+        color_text("  Unrecognized commands are passed to your system shell", BLUE),
+    ]
+    draw_box(top_lines, title="NOVIUM HELP", border_color=THEME["secondary"])
     print()
 
     sections = [
-        ("Commands", [
-            ("help", "show this help text"),
-            ("stats", "display live system stats (Q to stop)"),
-            ("fan", "show fan and temperature sensor status"),
-            ("sysinfo", "display detailed system information"),
-            ("nhome", "return to the Novium home screen"),
-            ("clear", "clear the screen"),
-            ("exit", "quit Novium"),
+        ("SYSTEM", [
+            ("stats", "Live CPU, memory, disk, temp & fan monitor (Q to stop)"),
+            ("fan", "Temperature and fan sensor dashboard"),
+            ("sysinfo", "Detailed system information overview"),
+            ("perfcheck", "Run performance health checks with auto-fix"),
+            ("seccheck", "Scan for security issues and suspicious activity"),
+            ("ff", "Launch fastfetch (auto-installs if missing)"),
         ]),
-        ("Utilities", [
-            ("scanLAN [-d]", "scan LAN for devices (passive ARP)"),
-            ("web <query>", "open Google search in your browser"),
-            ("app <name>", "launch or search for an application"),
-            ("install <app>", "install app (steam, discord, etc.)"),
+        ("NETWORK", [
+            ("scanLAN [-d]", "Scan LAN for devices — add -d for deep TCP probe"),
+            ("novium connect [url]", "Connect to Novium Network"),
+            ("novium status", "Show connection status and client info"),
+            ("novium disconnect", "Disconnect from Novium Network"),
+            ("novium invite", "Join the Novium Discord server"),
         ]),
-        ("Security", [
-            ("perfcheck", "check system performance and auto-fix"),
-            ("seccheck", "scan for security and suspicious activity"),
+        ("APPS & TOOLS", [
+            ("web <query>", "Search Google from your terminal"),
+            ("app <name>", "Launch or search for an app"),
+            ("install <app>", "Quick install: steam, discord, vscode, chrome, firefox, node, git"),
+            ("font set <name>", "Set terminal font (monocraft, default)"),
+            ("font list", "List available fonts"),
+            ("font current", "Show currently active font"),
         ]),
-        ("System", [
-            ("winactivate", "run Windows activation script"),
-            ("update", "check and apply Novium updates"),
-            ("os-setup", "run OS/system setup wizard"),
-            ("ff", "run fastfetch (auto-installs if missing)"),
-            ("logo", "switch logo: Novium / OS / None"),
-            ("color <C>", "change logo color"),
+        ("CUSTOMIZE", [
+            ("settings", "Open settings menu (toggles, network, shortcuts)"),
+            ("setup", "Re-run first-time setup wizard"),
+            ("color <C>", "Change logo color: BLUE, CYAN, MAGENTA, GREEN, YELLOW, RED"),
+            ("logo", "Switch logo: Novium / OS (fastfetch) / None"),
+            ("os-setup", "Run OS-specific setup and configuration"),
         ]),
-        ("Version", [
-            ("version", "show current Novium version"),
+        ("SESSION", [
+            ("nhome", "Return to Novium home screen"),
+            ("clear", "Clear terminal screen"),
+            ("version", "Show current Novium version"),
+            ("help", "Display this help text"),
+            ("exit", "Quit Novium"),
         ]),
-        ("Font", [
-            ("font set <name>", "set font (monocraft, default)"),
-            ("font list", "list available fonts"),
-            ("font current", "show current font"),
-        ]),
-        ("Novium Network", [
-            ("novium connect", "connect to Novium Network"),
-            ("novium status", "show connection status"),
-            ("novium disconnect", "disconnect from network"),
-            ("novium invite", "join the Novium Discord server"),
-        ]),
-        ("Setup", [
-            ("settings", "open Novium settings menu"),
-            ("setup", "rerun first-run setup wizard"),
-            ("nuke", "remove Novium from your system"),
-            ("nrestart", "restart Novium (applies file changes)"),
+        ("MAINTENANCE", [
+            ("update", "Check GitHub for Novium updates"),
+            ("winactivate", "Run Windows activation script"),
+            ("nrestart", "Restart Novium (applies code updates)"),
+            ("nuke", "Permanently remove Novium from your system"),
         ]),
     ]
 
     for section_name, commands in sections:
-        headers = [color_text(section_name, BOLD + THEME["secondary"])]
-        draw_table(headers, [[c] for c in [" "]], border_color=THEME["secondary"])
+        print(color_text(f"  {section_name}", BOLD + THEME["secondary"]))
         draw_table(
             [color_text("Command", THEME["highlight"]), color_text("Description", THEME["highlight"])],
             [[color_text(cmd, THEME["secondary"]), color_text(desc, BLUE)] for cmd, desc in commands],
@@ -184,8 +184,9 @@ def show_shell_help():
         )
         print()
 
-    print(color_text("  Any other input is executed as a system command", GREEN))
-    print(color_text("  (dir on Windows, ls on Linux/macOS, etc.)", GREEN))
+    print(color_text("  Any other input runs as a system command", GREEN))
+    print(color_text("  (dir, ls, ipconfig, uname -a, etc.)", GREEN))
+    print()
 
 
 def show_sysinfo():
@@ -311,7 +312,7 @@ def start_screen():
     # Network auto-connect
     net = get_network()
     if config.get("network", {}).get("enabled", False):
-        url = config["network"].get("server_url", "ws://localhost:8765")
+        url = config["network"].get("server_url", "ws://novium-network.duckdns.org:8765")
         ok, msg = net.connect(url)
         if ok:
             print(color_text(f"  {msg}", GREEN))
@@ -625,7 +626,7 @@ def start_screen():
                 if net.connected:
                     print(color_text("Already connected.", YELLOW))
                 else:
-                    url = parts[2] if len(parts) > 2 else config.get("network", {}).get("server_url", "ws://localhost:8765")
+                    url = parts[2] if len(parts) > 2 else config.get("network", {}).get("server_url", "ws://novium-network.duckdns.org:8765")
                     _network_connection_screen(net, url)
                     if net.connected:
                         cfg = load_config()

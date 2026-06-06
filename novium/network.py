@@ -106,7 +106,7 @@ class NoviumNetwork:
             self._cleanup_ws()
 
         cfg = load_config()
-        url = url or cfg.get("network", {}).get("server_url", "ws://localhost:8765")
+        url = url or cfg.get("network", {}).get("server_url", "ws://novium-network.duckdns.org:8765")
 
         try:
             ws = create_connection(url, timeout=10)
@@ -266,7 +266,7 @@ class NoviumNetwork:
                 return
 
             cfg = load_config()
-            url = cfg.get("network", {}).get("server_url", "ws://localhost:8765")
+            url = cfg.get("network", {}).get("server_url", "ws://novium-network.duckdns.org:8765")
             ok, msg = self.connect(url)
             if ok:
                 _log(f"_reconnect_loop: reconnected successfully — {msg}")
